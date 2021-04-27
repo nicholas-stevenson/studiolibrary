@@ -2495,7 +2495,7 @@ class LibraryWindow(QtWidgets.QWidget):
 
         :rtype: None
         """
-        title = "Studio Library - "
+        title = "Studio Library (Pubg Edition) - "
         title += studiolibrary.version() + " - " + self.name()
 
         if self.isLocked():
