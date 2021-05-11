@@ -453,7 +453,7 @@ class BaseSaveWidget(QtWidgets.QWidget):
                 "Error while saving",
                 str(e),
             )
-            raise
+            #raise
 
     def save(self, path, thumbnail):
         """
