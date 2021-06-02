@@ -60,10 +60,11 @@ import mutils
 
 try:
     import maya.cmds
+    import maya.api.OpenMaya as om2
 except ImportError:
     import traceback
-    traceback.print_exc()
 
+    traceback.print_exc()
 
 __all__ = ["Pose", "savePose", "loadPose"]
 
@@ -143,6 +144,10 @@ class Pose(mutils.TransferObject):
         :rtype: dict
         """
         attrs = maya.cmds.listAttr(name, unlocked=True, keyable=True) or []
+
+        if self.hasTransforms(attrs):
+            attrs.extend(["matrix", "worldMatrix"])
+
         attrs = list(set(attrs))
         attrs = [mutils.Attribute(name, attr) for attr in attrs]
 
@@ -154,12 +159,30 @@ class Pose(mutils.TransferObject):
                     msg = "Cannot save the attribute %s with value None."
                     logger.warning(msg, attr.fullname())
                 else:
+                    value = True if self.isTransform(attr.attr()) else attr.value()
                     data["attrs"][attr.attr()] = {
-                        "type": attr.type(),
-                        "value": attr.value()
+                        "type":  attr.type(),
+                        "value": value
                     }
 
         return data
+
+    def hasTransforms(self, attrs_list):
+        return any(
+            attr.startswith("translate")
+            or attr.startswith("rotate")
+            or attr.startswith("scale")
+            for attr in attrs_list
+        )
+
+    def popTransforms(self, attrs_list):
+        for attr in attrs_list[:]:
+            if self.isTransform(attr):
+                attrs_list.remove(attr)
+        return attrs_list
+
+    def isTransform(self, attr):
+        return any([attr.startswith("translate") or attr.startswith("rotate") or attr.startswith("scale")])
 
     def select(self, objects=None, namespaces=None, **kwargs):
         """
@@ -353,6 +376,7 @@ class Pose(mutils.TransferObject):
             clearSelection=False,
             ignoreConnected=False,
             searchAndReplace=None,
+            applyRelativeTo=None
     ):
         """
         Load the pose to the given objects or namespaces.
@@ -372,6 +396,7 @@ class Pose(mutils.TransferObject):
         :type onlyConnected: bool
         :type clearSelection: bool
         :type searchAndReplace: (str, str) or None
+        :type applyRelativeTo: str or None
         """
         if mirror and not mirrorTable:
             logger.warning("Cannot mirror pose without a mirror table!")
@@ -390,6 +415,7 @@ class Pose(mutils.TransferObject):
             onlyConnected=onlyConnected,
             ignoreConnected=ignoreConnected,
             searchAndReplace=searchAndReplace,
+            applyRelativeTo=applyRelativeTo
         )
 
         self.beforeLoad(clearSelection=clearSelection)
@@ -418,6 +444,7 @@ class Pose(mutils.TransferObject):
             batchMode=False,
             clearCache=True,
             searchAndReplace=None,
+            applyRelativeTo=None
     ):
         """
         Update the pose cache.
@@ -431,6 +458,7 @@ class Pose(mutils.TransferObject):
         :type batchMode: bool
         :type mirrorTable: mutils.MirrorTable
         :type searchAndReplace: (str, str) or None
+        :type applyRelativeTo: str or None
         """
         if clearCache or not batchMode or not self._mtime:
             self._mtime = self.mtime()
@@ -488,7 +516,7 @@ class Pose(mutils.TransferObject):
             text = "No objects match when loading data. " \
                    "Turn on debug mode to see more details."
 
-            raise mutils.NoMatchFoundError(text)
+            logger.error(mutils.NoMatchFoundError(text))
 
     def cacheNode(
             self,
@@ -576,16 +604,41 @@ class Pose(mutils.TransferObject):
         """
         cache = self.cache()
 
-        for i in range(0, len(cache)):
-            srcAttribute, dstAttribute, srcMirrorValue = cache[i]
+        for idx, data in enumerate(cache):
+            srcAttribute, dstAttribute, srcMirrorValue = data
+
+            if srcAttribute.attr() in ["matrix", "worldMatrix"]:
+                continue
+
+            matrix, worldMatrix = self.matrixFromCache(cache, srcAttribute.name())
+
             if srcAttribute and dstAttribute:
                 if mirror and srcMirrorValue is not None:
                     value = srcMirrorValue
                 else:
                     value = srcAttribute.value()
                 try:
-                    dstAttribute.set(value, blend=blend, key=key,
-                                     additive=additive)
+                    if self.isTransform(srcAttribute.attr()) and all([matrix, worldMatrix]):
+
+                        dstAttribute.set(value, blend=blend, key=key,
+                                         additive=additive, isTransform=True, matrix=matrix, worldMatrix=worldMatrix)
+
+                    else:
+                        print 1
+                        dstAttribute.set(value, blend=blend, key=key,
+                                         additive=additive)
+
                 except (ValueError, RuntimeError):
-                    cache[i] = (None, None)
+                    cache[idx] = (None, None)
                     logger.debug('Ignoring %s', dstAttribute.fullname())
+
+    def matrixFromCache(self, cache, node):
+        matrix, worldMatrix = None, None
+        for srcAttribute, dstAttribute, srcMirrorValue in cache:
+            if srcAttribute.name() != node:
+                continue
+            if srcAttribute.attr() == "matrix":
+                matrix = srcAttribute.value()
+            elif srcAttribute.attr() == "worldMatrix":
+                worldMatrix = srcAttribute.value()
+        return matrix, worldMatrix

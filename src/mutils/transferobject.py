@@ -173,7 +173,7 @@ class TransferObject(object):
                     msg = 'The namespace "{0}" does not exist in the scene! ' \
                           "Please choose a namespace which exists."
                     msg = msg.format(namespace)
-                    raise ValueError(msg)
+                    logger.error(msg)
 
     def mtime(self):
         """
