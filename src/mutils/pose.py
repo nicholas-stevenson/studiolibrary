@@ -624,7 +624,6 @@ class Pose(mutils.TransferObject):
                                          additive=additive, isTransform=True, matrix=matrix, worldMatrix=worldMatrix)
 
                     else:
-                        print 1
                         dstAttribute.set(value, blend=blend, key=key,
                                          additive=additive)
 
