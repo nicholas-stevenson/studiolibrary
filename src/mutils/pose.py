@@ -245,17 +245,7 @@ class Pose(mutils.TransferObject):
         :type attr: str
         :rtype: str | int | float
         """
-
-        if self.isTransform(attr) and "matrix" in self.attrs(name):
-            matrix = self.attrValue(name, "matrix")
-            current_matrix = maya.cmds.xform(name, matrix=True, objectSpace=True, query=True)
-            maya.cmds.xform(name, matrix=matrix, objectSpace=True)
-            value = maya.cmds.getAttr("{}.{}".format(name, attr))
-            maya.cmds.xform(name, matrix=current_matrix, objectSpace=True)
-            return value
-
-        else:
-            return self.attr(name, attr).get("value", None)
+        return self.attr(name, attr).get("value", None)
 
     def setMirrorAxis(self, name, mirrorAxis):
         """
@@ -518,13 +508,7 @@ class Pose(mutils.TransferObject):
                 replace=replace,
             )
 
-            sorted_pairs = {}
             for srcNode, dstNode in matches:
-                sorted_pairs[maya.cmds.ls(dstNode.name(), long=True)[0]] = [srcNode, dstNode]
-
-            for longName, pair in sorted(sorted_pairs.items(), key=lambda x: len(x[0])):
-                srcNode, dstNode = pair
-
                 self.cacheNode(
                     srcNode,
                     dstNode,
@@ -533,6 +517,37 @@ class Pose(mutils.TransferObject):
                     ignoreConnected=ignoreConnected,
                     usingNamespaces=usingNamespaces,
                 )
+
+
+            matrix_update = {}
+            for idx, data in enumerate(self.cache()):
+                srcAttribute, dstAttribute, srcMirrorValue = data
+
+                if self.isTransform(srcAttribute.attr()):
+                    matrix, worldMatrix = self.matrixFromCache(self.cache(), dstAttribute.name())
+                    if matrix:
+                        current_matrix = maya.cmds.xform(srcAttribute.name(), matrix=True, query=True)
+                        matrix_update[srcAttribute.name()] = current_matrix
+
+            for idx, data in enumerate(self.cache()):
+                srcAttribute, dstAttribute, srcMirrorValue = data
+
+                if self.isTransform(srcAttribute.attr()):
+                    matrix, worldMatrix = self.matrixFromCache(self.cache(), dstAttribute.name())
+                    if matrix:
+                        maya.cmds.xform(srcAttribute.name(), matrix=matrix, objectSpace=True)
+
+            for idx, data in enumerate(self.cache()):
+                srcAttribute, dstAttribute, srcMirrorValue = data
+                matrix, worldMatrix = self.matrixFromCache(self.cache(), dstAttribute.name())
+                if matrix:
+                    matrix, worldMatrix = self.matrixFromCache(self.cache(), dstAttribute.name())
+                    srcAttribute.setValue(maya.cmds.getAttr(srcAttribute.fullname()))
+
+            for node, matrix in matrix_update.items():
+                maya.cmds.xform(node, matrix=matrix, objectSpace=True)
+
+            True
 
         if not self.cache():
             text = "No objects match when loading data. " \

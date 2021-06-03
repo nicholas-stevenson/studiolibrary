@@ -20,6 +20,7 @@ attr.set(100)
 import logging
 from studiovendor import six
 
+import shared.python.math
 import shared.maya.decorators
 
 try:
@@ -229,6 +230,9 @@ class Attribute(object):
         if self._fullname is None:
             self._fullname = '{0}.{1}'.format(self.name(), self.attr())
         return self._fullname
+
+    def setValue(self, value):
+        self._value = value
 
     def value(self):
         """
