@@ -18,22 +18,19 @@ attr = mutils.Attribute("sphere1", "translateX")
 attr.set(100)
 """
 import logging
-import math
-import shared.python.math
-import shared.maya.api.object
-import shared.maya.api.matrix
-
 from studiovendor import six
+
+import shared.maya.decorators
 
 try:
     import maya.cmds
-    import maya.api.OpenMaya as om2
 except ImportError:
     import traceback
-
     traceback.print_exc()
 
+
 logger = logging.getLogger(__name__)
+
 
 VALID_CONNECTIONS = [
     "animCurve",
@@ -268,7 +265,9 @@ class Attribute(object):
 
         return self._type
 
-    def set(self, value, blend=100, key=False, clamp=True, additive=False, isTransform=False, matrix=None, worldMatrix=None):
+    @shared.maya.decorators.as_dg
+    @shared.maya.decorators.disable_auto_keyframe
+    def set(self, value, blend=100, key=False, clamp=True, additive=False):
         """
         Set the value for the attribute.
 
@@ -276,73 +275,18 @@ class Attribute(object):
         :type clamp: bool
         :type value: float | str | list
         :type blend: float
-        :type isTransform: bool
-        :type matrix: list
-        :type worldMatrix: list
         """
-
-        if isTransform and value is True and all([matrix, worldMatrix]):
-
-            # Get Pose Matrix
-            pose_transformation_matrix = om2.MTransformationMatrix(om2.MMatrix(matrix))
-            pose_transformation_world_matrix = om2.MTransformationMatrix(om2.MMatrix(worldMatrix))
-
-            # Get the current object's matrix
-            target_mobject = shared.maya.api.object.get_mobject(self.name())
-            target_transformation_matrix = om2.MTransformationMatrix(shared.maya.api.matrix.get_matrix(target_mobject, 'matrix'))
-            target_transformation_world_matrix = om2.MTransformationMatrix(shared.maya.api.matrix.get_matrix(target_mobject, 'worldMatrix'))
-
-            pose_value = []
-            value = []
-            pose_index = int()
-
-            if self.attr().startswith('translate'):
-                pose_value = list(pose_transformation_matrix.translation(om2.MSpace.kTransform))
-                value = list(target_transformation_matrix.translation(om2.MSpace.kTransform))
-
-            elif self.attr().startswith('rotate'):
-                value = maya.cmds.xform(self.name(), rotation=True, query=True, objectSpace=True)
-
-                temp_matrix = target_transformation_matrix.asMatrix()
-                temp_transformation_matrix = om2.MTransformationMatrix(temp_matrix)
-                temp_transformation_matrix.setRotation(pose_transformation_matrix.rotation())
-                maya.cmds.xform(self.name(), matrix=temp_transformation_matrix.asMatrix(), objectSpace=True)
-
-                pose_value = maya.cmds.xform(self.name(), rotation=True, query=True, objectSpace=True)
-                maya.cmds.xform(self.name(), matrix=target_transformation_matrix.asMatrix(), objectSpace=True)
-
-            elif self.attr().startswith('scale'):
-                pose_value = list(pose_transformation_matrix.scale(om2.MSpace.kTransform))
-                value = list(target_transformation_matrix.scale(om2.MSpace.kTransform))
-
-            if self.attr().endswith("X"):
-                pose_index = 0
-            elif self.attr().endswith("Y"):
-                pose_index = 1
-            elif self.attr().endswith("Z"):
-                pose_index = 2
-
-        else:
-            pose_value = self.value()
-
         try:
             if additive and self.type() != 'bool':
                 if self.attr().startswith('scale'):
-                    value = pose_value * (1 + (value - 1) * (blend / 100.0))
+                    value = self.value() * (1 + (value - 1) * (blend/100.0))
                 else:
-                    value = pose_value + value * (blend / 100.0)
+                    value = self.value() + value * (blend/100.0)
             elif int(blend) == 0:
-                value = pose_value
+                value = self.value()
             else:
-
-                if isTransform and all([matrix, worldMatrix]):
-                    _value = shared.python.math.distance(value[pose_index], pose_value[pose_index]) * (blend / 100.0)
-                    value[pose_index] = value[pose_index] + _value
-
-                else:
-                    _value = (value - pose_value) * (blend / 100.00)
-                    value = pose_value + _value
-
+                _value = (value - self.value()) * (blend/100.00)
+                value = self.value() + _value
         except TypeError as error:
             msg = 'Cannot BLEND or ADD attribute {0}: Error: {1}'
             msg = msg.format(self.fullname(), error)
@@ -354,19 +298,7 @@ class Attribute(object):
             elif self.type() in ["list", "matrix"]:
                 maya.cmds.setAttr(self.fullname(), *value, type=self.type())
             else:
-                if isTransform and all([matrix, worldMatrix]):
-                    if self.attr().startswith('translate'):
-                        maya.cmds.xform(self.name(), translation=value, worldSpace=False)
-
-                    if self.attr().startswith('rotate'):
-                        maya.cmds.xform(self.name(), rotation=value, worldSpace=False)
-
-                    if self.attr().startswith('scale'):
-                        maya.cmds.setAttr(self.fullname(), value, clamp=clamp)
-
-                else:
-                    maya.cmds.setAttr(self.fullname(), value, clamp=clamp)
-
+                maya.cmds.setAttr(self.fullname(), value, clamp=clamp)
         except (ValueError, RuntimeError) as error:
             msg = "Cannot SET attribute {0}: Error: {1}"
             msg = msg.format(self.fullname(), error)
@@ -374,10 +306,7 @@ class Attribute(object):
 
         try:
             if key:
-                if isTransform:
-                    maya.cmds.setKeyframe(self.name())
-                else:
-                    self.setKeyframe(value=value)
+                self.setKeyframe(value=value)
         except TypeError as error:
             msg = 'Cannot KEY attribute {0}: Error: {1}'
             msg = msg.format(self.fullname(), error)

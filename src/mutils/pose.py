@@ -57,6 +57,7 @@ pose.load(objects=["Character1:Hand_L", "Character1:Finger_L"])
 import logging
 
 import mutils
+import shared.maya.decorators
 
 try:
     import maya.cmds
@@ -182,7 +183,9 @@ class Pose(mutils.TransferObject):
         return attrs_list
 
     def isTransform(self, attr):
-        return any([attr.startswith("translate") or attr.startswith("rotate") or attr.startswith("scale")])
+        return attr in ["translateX", "translateY", "translateZ",
+                        "rotateX", "rotateY", "rotateZ",
+                        "scaleX", "scaleY", "scaleZ"]
 
     def select(self, objects=None, namespaces=None, **kwargs):
         """
@@ -232,6 +235,8 @@ class Pose(mutils.TransferObject):
         """
         return self.attr(name, attr).get("type", None)
 
+    @shared.maya.decorators.freeze_viewports
+    @shared.maya.decorators.disable_auto_keyframe
     def attrValue(self, name, attr):
         """
         Return the attribute value for the given name and attribute.
@@ -240,7 +245,17 @@ class Pose(mutils.TransferObject):
         :type attr: str
         :rtype: str | int | float
         """
-        return self.attr(name, attr).get("value", None)
+
+        if self.isTransform(attr) and "matrix" in self.attrs(name):
+            matrix = self.attrValue(name, "matrix")
+            current_matrix = maya.cmds.xform(name, matrix=True, objectSpace=True, query=True)
+            maya.cmds.xform(name, matrix=matrix, objectSpace=True)
+            value = maya.cmds.getAttr("{}.{}".format(name, attr))
+            maya.cmds.xform(name, matrix=current_matrix, objectSpace=True)
+            return value
+
+        else:
+            return self.attr(name, attr).get("value", None)
 
     def setMirrorAxis(self, name, mirrorAxis):
         """
@@ -359,6 +374,7 @@ class Pose(mutils.TransferObject):
         logger.debug('Loaded "%s"', self.path())
 
     @mutils.timing
+    @shared.maya.decorators.as_dg
     def load(
             self,
             objects=None,
@@ -502,7 +518,13 @@ class Pose(mutils.TransferObject):
                 replace=replace,
             )
 
+            sorted_pairs = {}
             for srcNode, dstNode in matches:
+                sorted_pairs[maya.cmds.ls(dstNode.name(), long=True)[0]] = [srcNode, dstNode]
+
+            for longName, pair in reversed(sorted(sorted_pairs.items(), key=lambda x: len(x[0]))):
+                srcNode, dstNode = pair
+
                 self.cacheNode(
                     srcNode,
                     dstNode,
@@ -610,23 +632,15 @@ class Pose(mutils.TransferObject):
             if srcAttribute.attr() in ["matrix", "worldMatrix"]:
                 continue
 
-            matrix, worldMatrix = self.matrixFromCache(cache, srcAttribute.name())
-
             if srcAttribute and dstAttribute:
                 if mirror and srcMirrorValue is not None:
                     value = srcMirrorValue
                 else:
                     value = srcAttribute.value()
+
                 try:
-                    if self.isTransform(srcAttribute.attr()) and all([matrix, worldMatrix]):
-
-                        dstAttribute.set(value, blend=blend, key=key,
-                                         additive=additive, isTransform=True, matrix=matrix, worldMatrix=worldMatrix)
-
-                    else:
-                        dstAttribute.set(value, blend=blend, key=key,
-                                         additive=additive)
-
+                    dstAttribute.set(value, blend=blend, key=key,
+                                     additive=additive)
                 except (ValueError, RuntimeError):
                     cache[idx] = (None, None)
                     logger.debug('Ignoring %s', dstAttribute.fullname())
