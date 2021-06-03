@@ -20,6 +20,9 @@ attr.set(100)
 import logging
 from studiovendor import six
 
+import shared.python.math
+import shared.maya.decorators
+
 try:
     import maya.cmds
 except ImportError:
@@ -58,6 +61,7 @@ VALID_ATTRIBUTE_TYPES = [
     "double",
     "doubleAngle",
     "doubleLinear",
+    "matrix"
 ]
 
 
@@ -147,8 +151,8 @@ class Attribute(object):
         :rtype: dict
         """
         result = {
-            "type": self.type(),
-            "value": self.value(),
+            "type":     self.type(),
+            "value":    self.value(),
             "fullname": self.fullname(),
         }
         return result
@@ -227,6 +231,9 @@ class Attribute(object):
             self._fullname = '{0}.{1}'.format(self.name(), self.attr())
         return self._fullname
 
+    def setValue(self, value):
+        self._value = value
+
     def value(self):
         """
         Return the value of the attribute.
@@ -262,6 +269,8 @@ class Attribute(object):
 
         return self._type
 
+    @shared.maya.decorators.as_dg
+    @shared.maya.decorators.disable_auto_keyframe
     def set(self, value, blend=100, key=False, clamp=True, additive=False):
         """
         Set the value for the attribute.
@@ -535,3 +544,6 @@ class Attribute(object):
             return False
         else:
             return True
+
+    def isTransform(self, attr):
+        return any([attr.startswith("translate") or attr.startswith("rotate") or attr.startswith("scale")])

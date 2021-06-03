@@ -343,6 +343,20 @@ class PoseItem(baseitem.BaseItem):
                     },
                 ]
             },
+            {
+                "name":  "pubgRigOptionsGroup",
+                "title": "Pubg Rig",
+                "type":  "group",
+                "order": 3,
+            },
+            {
+                "name":  "applyRelativeTo",
+                "title": "Relative To:",
+                "type":  "radio",
+                "value": "Cog",
+                "persistent": True,
+                "items": ["None", "Root", "Cog", "Selection"]
+            },
         ]
 
         schema.extend(super(PoseItem, self).loadSchema())
@@ -401,12 +415,13 @@ class PoseItem(baseitem.BaseItem):
         :type showBlendMessage: bool
         """
         if self._options is None:
-            self._options = dict()
+            self._options = {}
             self._options["key"] = self.currentLoadValue("key")
             # self._options['namespaces'] = self.currentLoadValue("namespaces")
             self._options['mirrorTable'] = self.mirrorTable()
             self._options['objects'] = maya.cmds.ls(selection=True) or []
             self._options['additive'] = self.currentLoadValue("additive")
+            self._options['applyRelativeTo'] = self.currentLoadValue("applyRelativeTo")
 
         searchAndReplace = None
         if self.currentLoadValue("searchAndReplaceEnabled"):
@@ -425,7 +440,7 @@ class PoseItem(baseitem.BaseItem):
             )
         except Exception as error:
             self.showErrorDialog("Item Error", str(error))
-            raise
+            # raise
 
     def load(
         self,
@@ -443,6 +458,7 @@ class PoseItem(baseitem.BaseItem):
         clearSelection=False,
         showBlendMessage=False,
         searchAndReplace=None,
+        applyRelativeTo=None
     ):
         """
         Load the pose item to the given objects or namespaces.
@@ -459,6 +475,7 @@ class PoseItem(baseitem.BaseItem):
         :type clearSelection: bool
         :type mirrorTable: mutils.MirrorTable
         :type searchAndReplace: (str, str) or None
+        :type applyRelativeTo: str or None
         """
         logger.debug(u'Loading: {0}'.format(self.path()))
 
@@ -491,12 +508,13 @@ class PoseItem(baseitem.BaseItem):
                 clearCache=clearCache,
                 mirrorTable=mirrorTable,
                 clearSelection=clearSelection,
-                searchAndReplace=searchAndReplace
+                searchAndReplace=searchAndReplace,
+                applyRelativeTo=applyRelativeTo
             )
 
         except Exception:
             self.setSliderDown(False)
-            raise
+            # raise
 
         finally:
             if not batchMode:

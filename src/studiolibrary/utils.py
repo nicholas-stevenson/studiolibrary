@@ -25,6 +25,7 @@ import platform
 import threading
 import collections
 import distutils.version
+import stat
 
 from datetime import datetime
 
@@ -631,6 +632,7 @@ def copyPath(src, dst, force=False):
         if os.path.isdir(dst):
             shutil.rmtree(dst)
         else:
+            makeFileWriteable(dst)
             os.remove(dst)
 
     # Make sure the destination directory exists
@@ -851,6 +853,18 @@ def write(path, data):
             os.rename(bak, path)
 
         raise
+
+
+def makeFileWriteable(file_path):
+    """
+    Change the permissions of the passed in file path to remove any read-only attributes.
+
+    Args:
+        file_path (str): Full path to the file.
+    """
+    if os.path.isfile(file_path):
+        if not os.access(file_path, os.W_OK):
+            os.chmod(file_path, stat.S_IWRITE)
 
 
 def update(data, other):
