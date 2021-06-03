@@ -169,12 +169,10 @@ class Pose(mutils.TransferObject):
         return data
 
     def hasTransforms(self, attrs_list):
-        return any(
-            attr.startswith("translate")
-            or attr.startswith("rotate")
-            or attr.startswith("scale")
-            for attr in attrs_list
-        )
+        for attr in attrs_list:
+            if self.isTransform(attr):
+                return True
+        return False
 
     def popTransforms(self, attrs_list):
         for attr in attrs_list[:]:
@@ -517,7 +515,6 @@ class Pose(mutils.TransferObject):
                     ignoreConnected=ignoreConnected,
                     usingNamespaces=usingNamespaces,
                 )
-
 
             matrix_update = {}
             for idx, data in enumerate(self.cache()):
