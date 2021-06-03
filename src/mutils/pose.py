@@ -522,7 +522,7 @@ class Pose(mutils.TransferObject):
             for srcNode, dstNode in matches:
                 sorted_pairs[maya.cmds.ls(dstNode.name(), long=True)[0]] = [srcNode, dstNode]
 
-            for longName, pair in reversed(sorted(sorted_pairs.items(), key=lambda x: len(x[0]))):
+            for longName, pair in sorted(sorted_pairs.items(), key=lambda x: len(x[0])):
                 srcNode, dstNode = pair
 
                 self.cacheNode(
