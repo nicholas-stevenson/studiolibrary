@@ -160,7 +160,7 @@ class Pose(mutils.TransferObject):
                     msg = "Cannot save the attribute %s with value None."
                     logger.warning(msg, attr.fullname())
                 else:
-                    value = True if self.isTransform(attr.attr()) else attr.value()
+                    value = attr.value()
                     data["attrs"][attr.attr()] = {
                         "type":  attr.type(),
                         "value": value
