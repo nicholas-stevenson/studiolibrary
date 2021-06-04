@@ -20,9 +20,6 @@ attr.set(100)
 import logging
 from studiovendor import six
 
-import shared.python.math
-import shared.maya.decorators
-
 try:
     import maya.cmds
 except ImportError:
@@ -269,8 +266,6 @@ class Attribute(object):
 
         return self._type
 
-    @shared.maya.decorators.as_dg
-    @shared.maya.decorators.disable_auto_keyframe
     def set(self, value, blend=100, key=False, clamp=True, additive=False):
         """
         Set the value for the attribute.

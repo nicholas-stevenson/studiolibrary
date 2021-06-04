@@ -57,7 +57,6 @@ pose.load(objects=["Character1:Hand_L", "Character1:Finger_L"])
 import logging
 
 import mutils
-import shared.maya.decorators
 
 try:
     import maya.cmds
@@ -199,9 +198,6 @@ class Pose(mutils.TransferObject):
                     return False
         return True
 
-    @shared.maya.decorators.as_dg
-    @shared.maya.decorators.freeze_viewports
-    @shared.maya.decorators.disable_auto_keyframe
     def updateValuesFromMatrices(self):
         """
         Before applying a pose using matrices, the pose is silently applied in its entirety,
@@ -279,8 +275,6 @@ class Pose(mutils.TransferObject):
         """
         return self.attr(name, attr).get("type", None)
 
-    @shared.maya.decorators.freeze_viewports
-    @shared.maya.decorators.disable_auto_keyframe
     def attrValue(self, name, attr):
         """
         Return the attribute value for the given name and attribute.
@@ -408,7 +402,6 @@ class Pose(mutils.TransferObject):
         logger.debug('Loaded "%s"', self.path())
 
     @mutils.timing
-    @shared.maya.decorators.as_dg
     def load(
             self,
             objects=None,
