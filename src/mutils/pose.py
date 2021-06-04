@@ -58,6 +58,8 @@ import logging
 
 import mutils
 
+import shared.maya.decorators
+
 try:
     import maya.cmds
     import maya.api.OpenMaya as om2
@@ -402,6 +404,7 @@ class Pose(mutils.TransferObject):
         logger.debug('Loaded "%s"', self.path())
 
     @mutils.timing
+    @shared.maya.decorators.disable_auto_keyframe
     def load(
             self,
             objects=None,
@@ -474,7 +477,7 @@ class Pose(mutils.TransferObject):
                 maya.cmds.setFocus("MayaWindow")
 
         if refresh:
-            maya.cmds.refresh(cv=True)
+            maya.cmds.refresh(currentView=True)
 
     def updateCache(
             self,
