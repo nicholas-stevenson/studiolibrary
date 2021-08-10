@@ -34,6 +34,7 @@ import getpass
 import logging
 
 from studiovendor import six
+import studiolibrary
 
 import mutils
 
@@ -223,6 +224,15 @@ class TransferObject(object):
         """
         return self.metadata().get("description", "")
 
+    def version(self):
+        """
+        Returns the version for this item.
+
+        :rtype: str
+
+        """
+        return self.metadata().get("version", "1.0")
+
     def objects(self):
         """
         Return all the object data.
@@ -369,7 +379,7 @@ class TransferObject(object):
 
         self.setMetadata("user", user)
         self.setMetadata("ctime", ctime)
-        self.setMetadata("version", "1.0.0")
+        self.setMetadata("version", studiolibrary.poseVersion())
         self.setMetadata("references", references)
         self.setMetadata("mayaVersion", maya.cmds.about(v=True))
         self.setMetadata("mayaSceneFile", maya.cmds.file(q=True, sn=True))

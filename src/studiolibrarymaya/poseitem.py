@@ -353,9 +353,10 @@ class PoseItem(baseitem.BaseItem):
                 "name":  "applyRelativeTo",
                 "title": "Relative To:",
                 "type":  "radio",
-                "value": "Cog",
+                "value": "None",
+                "items": ["None", "Root", "Cog"],
                 "persistent": True,
-                "items": ["None", "Root", "Cog", "Selection"]
+                "persistentKey": "BaseItem"
             },
         ]
 

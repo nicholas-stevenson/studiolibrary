@@ -229,6 +229,17 @@ class Pose(mutils.TransferObject):
         for node, matrix in matrix_update.items():
             maya.cmds.xform(node, matrix=matrix, objectSpace=True)
 
+    def matrixFromCache(self, cache, node):
+        matrix, worldMatrix = None, None
+        for srcAttribute, dstAttribute, srcMirrorValue in cache:
+            if srcAttribute.name() != node:
+                continue
+            if srcAttribute.attr() == "matrix":
+                matrix = srcAttribute.value()
+            elif srcAttribute.attr() == "worldMatrix":
+                worldMatrix = srcAttribute.value()
+        return matrix, worldMatrix
+
     def select(self, objects=None, namespaces=None, **kwargs):
         """
         Select the objects contained in the pose file.
@@ -672,13 +683,3 @@ class Pose(mutils.TransferObject):
                     cache[idx] = (None, None)
                     logger.debug('Ignoring %s', dstAttribute.fullname())
 
-    def matrixFromCache(self, cache, node):
-        matrix, worldMatrix = None, None
-        for srcAttribute, dstAttribute, srcMirrorValue in cache:
-            if srcAttribute.name() != node:
-                continue
-            if srcAttribute.attr() == "matrix":
-                matrix = srcAttribute.value()
-            elif srcAttribute.attr() == "worldMatrix":
-                worldMatrix = srcAttribute.value()
-        return matrix, worldMatrix

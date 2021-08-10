@@ -281,6 +281,11 @@ class BaseItem(studiolibrary.LibraryItem):
                 "value": contains,
             },
             {
+                "name":  "version",
+                "value": self.transferObject().version(),
+                "toolTip": studiolibrary.poseVersionSummary()
+            },
+            {
                 "name": "comment",
                 "value": self.transferObject().description() or "No comment",
             },

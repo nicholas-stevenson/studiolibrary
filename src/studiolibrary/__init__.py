@@ -11,6 +11,7 @@
 # License along with this library. If not, see <http://www.gnu.org/licenses/>.
 
 __version__ = "2.9.6.b3"
+__pose_version__ = "1.1.0"
 
 
 def version():
@@ -20,6 +21,25 @@ def version():
     :rtype: str
     """
     return __version__
+
+
+def poseVersion():
+    """
+    Returns the most recent Pose Version
+
+    :rtype: str
+
+    """
+    return __pose_version__
+
+
+def poseVersionSummary():
+    msg = list()
+
+    msg.append("1.1.0 : These poses contain additional Matrix data and are compatible with Animation Layers.")
+    msg.append("1.0.0 : This is the base Studio Library pose version.")
+
+    return '\n'.join(msg)
 
 
 from studiolibrary import config
