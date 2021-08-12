@@ -58,7 +58,9 @@ import logging
 
 import mutils
 
-import shared.maya.decorators
+import msn.maya.rig.query
+import shared.python.math
+import shared.maya.namespace
 
 try:
     import maya.cmds
@@ -138,6 +140,9 @@ class Pose(mutils.TransferObject):
         self._mirrorTable = None
         self._autoKeyFrame = None
 
+        # Pubg internal variables
+        self._rig_list = list()
+
     def createObjectData(self, name):
         """
         Create the object data for the given object name.
@@ -168,77 +173,6 @@ class Pose(mutils.TransferObject):
                     }
 
         return data
-
-    def hasTransforms(self, attrs_list):
-        for attr in attrs_list:
-            if self.isTransform(attr):
-                return True
-        return False
-
-    def isTransform(self, attr):
-        return attr in ["translateX", "translateY", "translateZ",
-                        "rotateX", "rotateY", "rotateZ",
-                        "scaleX", "scaleY", "scaleZ"]
-
-    def hasMatrixTransforms(self):
-        """
-        Test if the current pose contains matrix data for posing transforms.  Without matrix transforms, the internal _value attribute
-        will be used to apply the pose.  Otherwise, the matrix will be used to pose any transform attributes.  If ANY transform attribute
-        does not have matrix data saved with it, this function will return False.  There shouldn't be any new poses without matrix information
-        but this will ensure that legacy behavior (eg using _value and not matrices) is used, over failing to apply the pose entirely.
-
-        Returns (bool): True if local space matrices are found along side the stored attributes.
-                        False if matrices are not found (legacy poses)
-        """
-
-        for idx, data in enumerate(self.cache()):
-            srcAttribute, dstAttribute, srcMirrorValue = data
-
-            if self.isTransform(srcAttribute.attr()):
-                matrix, worldMatrix = self.matrixFromCache(self.cache(), srcAttribute.name())
-                if not matrix:
-                    return False
-        return True
-
-    def updateValuesFromMatrices(self):
-        """
-        Before applying a pose using matrices, the pose is silently applied in its entirety,
-        the attribute channels are captured, and the original locations are then restored.
-        """
-
-        matrix_update = {}
-        for idx, data in enumerate(self.cache()):
-            srcAttribute, dstAttribute, srcMirrorValue = data
-
-            if self.isTransform(srcAttribute.attr()):
-                current_matrix = maya.cmds.xform(srcAttribute.name(), matrix=True, query=True)
-                matrix_update[srcAttribute.name()] = current_matrix
-
-        for idx, data in enumerate(self.cache()):
-            srcAttribute, dstAttribute, srcMirrorValue = data
-
-            if self.isTransform(srcAttribute.attr()):
-                matrix, worldMatrix = self.matrixFromCache(self.cache(), srcAttribute.name())
-                if matrix:
-                    maya.cmds.xform(srcAttribute.name(), matrix=matrix, objectSpace=True)
-
-        for idx, data in enumerate(self.cache()):
-            srcAttribute, dstAttribute, srcMirrorValue = data
-            srcAttribute.setValue(maya.cmds.getAttr(srcAttribute.fullname()))
-
-        for node, matrix in matrix_update.items():
-            maya.cmds.xform(node, matrix=matrix, objectSpace=True)
-
-    def matrixFromCache(self, cache, node):
-        matrix, worldMatrix = None, None
-        for srcAttribute, dstAttribute, srcMirrorValue in cache:
-            if srcAttribute.name() != node:
-                continue
-            if srcAttribute.attr() == "matrix":
-                matrix = srcAttribute.value()
-            elif srcAttribute.attr() == "worldMatrix":
-                worldMatrix = srcAttribute.value()
-        return matrix, worldMatrix
 
     def select(self, objects=None, namespaces=None, **kwargs):
         """
@@ -397,6 +331,13 @@ class Pose(mutils.TransferObject):
             maya.cmds.autoKeyframe(edit=True, state=False)
             maya.cmds.select(clear=clearSelection)
 
+            for namespace in self.namespaces():
+                rig = msn.maya.rig.query.get_rig(namespace)
+                if rig:
+                    self._rig_list.append(rig)
+                    rig.snapshot_rig_states()
+                    rig.set_ik_states(False)
+
     def afterLoad(self):
         """Called after loading the pose."""
         if not self._isLoading:
@@ -414,8 +355,87 @@ class Pose(mutils.TransferObject):
 
         logger.debug('Loaded "%s"', self.path())
 
+        for rig in self._rig_list:
+            rig.restore_rig_states()
+        self._rig_list = list()
+
+    def hasTransforms(self, attrs_list):
+        for attr in attrs_list:
+            if self.isTransform(attr):
+                return True
+        return False
+
+    def isTransform(self, attr):
+        return attr in ["translateX", "translateY", "translateZ",
+                        "rotateX", "rotateY", "rotateZ",
+                        "scaleX", "scaleY", "scaleZ"]
+
+    def isRotationTransform(self, attr):
+        return attr in ["rotateX", "rotateY", "rotateZ"]
+
+    def hasMatrixTransforms(self):
+        """
+        Test if the current pose contains matrix data for posing transforms.  Without matrix transforms, the internal _value attribute
+        will be used to apply the pose.  Otherwise, the matrix will be used to pose any transform attributes.  If ANY transform attribute
+        does not have matrix data saved with it, this function will return False.  There shouldn't be any new poses without matrix information
+        but this will ensure that legacy behavior (eg using _value and not matrices) is used, over failing to apply the pose entirely.
+
+        Returns (bool): True if local space matrices are found along side the stored attributes.
+                        False if matrices are not found (legacy poses)
+        """
+
+        for idx, data in enumerate(self.cache()):
+            srcAttribute, dstAttribute, srcMirrorValue = data
+
+            if self.isTransform(srcAttribute.attr()):
+                matrix, worldMatrix = self.matrixFromCache(self.cache(), srcAttribute.name())
+                if not matrix:
+                    return False
+        return True
+
+    def updateValuesFromMatrices(self):
+        """
+        Before applying a pose using matrices, the pose is silently applied in its entirety,
+        the attribute channels are captured, and the original locations are then restored.
+        """
+
+        matrix_update = {}
+        for idx, data in enumerate(self.cache()):
+            srcAttribute, dstAttribute, srcMirrorValue = data
+
+            if self.isTransform(srcAttribute.attr()):
+                current_matrix = maya.cmds.xform(srcAttribute.name(), matrix=True, query=True)
+                matrix_update[srcAttribute.name()] = current_matrix
+
+        for idx, data in enumerate(self.cache()):
+            srcAttribute, dstAttribute, srcMirrorValue = data
+
+            if self.isTransform(srcAttribute.attr()):
+                matrix, worldMatrix = self.matrixFromCache(self.cache(), srcAttribute.name())
+                if matrix:
+                    maya.cmds.xform(srcAttribute.name(), matrix=matrix, objectSpace=True)
+
+        for idx, data in enumerate(self.cache()):
+            srcAttribute, dstAttribute, srcMirrorValue = data
+
+            if self.isTransform(srcAttribute.attr()):
+                dstAttribute.setValue(maya.cmds.getAttr(dstAttribute.fullname()))
+
+        for node, matrix in matrix_update.items():
+            maya.cmds.xform(node, matrix=matrix, objectSpace=True)
+
+    def matrixFromCache(self, cache, node):
+        matrix, worldMatrix = None, None
+        for srcAttribute, dstAttribute, srcMirrorValue in cache:
+            if srcAttribute.name() != node:
+                continue
+            if srcAttribute.attr() == "matrix":
+                matrix = srcAttribute.value()
+            elif srcAttribute.attr() == "worldMatrix":
+                worldMatrix = srcAttribute.value()
+        return matrix, worldMatrix
+
     @mutils.timing
-    @shared.maya.decorators.disable_auto_keyframe
     def load(
             self,
             objects=None,
@@ -461,6 +481,8 @@ class Pose(mutils.TransferObject):
 
         if batchMode:
             key = False
+
+        self._namespaces = namespaces  # Update the TransferObject's namespace list
 
         self.updateCache(
             objects=objects,
@@ -569,7 +591,7 @@ class Pose(mutils.TransferObject):
                     usingNamespaces=usingNamespaces,
                 )
 
-            if self.hasMatrixTransforms():
+            if self.version() > "1.0.0":
                 self.updateValuesFromMatrices()
 
         if not self.cache():

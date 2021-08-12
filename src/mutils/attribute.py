@@ -18,17 +18,16 @@ attr = mutils.Attribute("sphere1", "translateX")
 attr.set(100)
 """
 import logging
+import traceback
 from studiovendor import six
 
 try:
     import maya.cmds
 except ImportError:
-    import traceback
+
     traceback.print_exc()
 
-
 logger = logging.getLogger(__name__)
-
 
 VALID_CONNECTIONS = [
     "animCurve",
@@ -244,7 +243,11 @@ class Attribute(object):
             except Exception:
                 msg = 'Cannot GET attribute VALUE for "{0}"'
                 msg = msg.format(self.fullname())
-                logger.exception(msg)
+
+                logger.warning(msg)
+
+                if logger.level is logging.DEBUG:
+                    traceback.print_exc()
 
         return self._value
 
@@ -262,7 +265,10 @@ class Attribute(object):
             except Exception:
                 msg = 'Cannot GET attribute TYPE for "{0}"'
                 msg = msg.format(self.fullname())
-                logger.exception(msg)
+                logger.warning(msg)
+
+                if logger.level is logging.DEBUG:
+                    traceback.print_exc()
 
         return self._type
 
@@ -278,13 +284,13 @@ class Attribute(object):
         try:
             if additive and self.type() != 'bool':
                 if self.attr().startswith('scale'):
-                    value = self.value() * (1 + (value - 1) * (blend/100.0))
+                    value = self.value() * (1 + (value - 1) * (blend / 100.0))
                 else:
-                    value = self.value() + value * (blend/100.0)
+                    value = self.value() + value * (blend / 100.0)
             elif int(blend) == 0:
                 value = self.value()
             else:
-                _value = (value - self.value()) * (blend/100.00)
+                _value = (value - self.value()) * (blend / 100.00)
                 value = self.value() + _value
         except TypeError as error:
             msg = 'Cannot BLEND or ADD attribute {0}: Error: {1}'
@@ -456,7 +462,7 @@ class Attribute(object):
         except RuntimeError:
             msg = 'Cannot paste anim curve "{0}" to attribute "{1}"'
             msg = msg.format(curve, fullname)
-            logger.exception(msg)
+            logger.debug(msg)
 
     def animCurve(self):
         """
