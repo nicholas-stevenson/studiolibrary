@@ -280,6 +280,7 @@ class Attribute(object):
         :type clamp: bool
         :type value: float | str | list
         :type blend: float
+        :type additive: bool
         """
         try:
             if additive and self.type() != 'bool':
