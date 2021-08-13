@@ -313,6 +313,32 @@ class Pose(mutils.TransferObject):
 
         return value
 
+    def updateRigList(self):
+        """
+        Based on the selected namespaces, generate a list of native rig objects.
+        This internal list is destroyed after the pose has finished applying.
+        """
+        if not self._isLoading:
+            for namespace in self.namespaces():
+                rig = msn.maya.rig.query.get_rig(namespace)
+                if rig:
+                    self._rig_list.append(rig)
+
+    def resetRigList(self):
+        self._rig_list = list()
+
+    def captureRigStates(self):
+        for rig in self._rig_list:
+            rig.snapshot_rig_states()
+
+    def restoreRigStates(self):
+        for rig in self._rig_list:
+            rig.restore_rig_states()
+
+    def setRigsToPosing(self):
+        for rig in self._rig_list:
+            rig.set_ik_states(False)
+
     def beforeLoad(self, clearSelection=True):
         """
         Called before loading the pose.
@@ -331,12 +357,9 @@ class Pose(mutils.TransferObject):
             maya.cmds.autoKeyframe(edit=True, state=False)
             maya.cmds.select(clear=clearSelection)
 
-            for namespace in self.namespaces():
-                rig = msn.maya.rig.query.get_rig(namespace)
-                if rig:
-                    self._rig_list.append(rig)
-                    rig.snapshot_rig_states()
-                    rig.set_ik_states(False)
+            if self._rig_list:
+                self.captureRigStates()
+                self.setRigsToPosing()
 
     def afterLoad(self):
         """Called after loading the pose."""
@@ -355,9 +378,9 @@ class Pose(mutils.TransferObject):
 
         logger.debug('Loaded "%s"', self.path())
 
-        for rig in self._rig_list:
-            rig.restore_rig_states()
-        self._rig_list = list()
+        if self._rig_list:
+            self.restoreRigStates()
+            self.resetRigList()
 
     def hasTransforms(self, attrs_list):
         for attr in attrs_list:
@@ -483,6 +506,8 @@ class Pose(mutils.TransferObject):
             key = False
 
         self._namespaces = namespaces  # Update the TransferObject's namespace list
+
+        self.updateRigList()
 
         self.updateCache(
             objects=objects,
