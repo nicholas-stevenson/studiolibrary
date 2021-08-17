@@ -150,6 +150,13 @@ class BaseItem(studiolibrary.LibraryItem):
         """
         return self._currentLoadValues.get(name)
 
+    def applyRelativeTo(self, name):
+        value = self._currentLoadValues.get(name)
+        if value == "None":
+            return None
+        else:
+            return value
+
     def setCurrentLoadValues(self, values):
         """
         Set the current field values for the the item.

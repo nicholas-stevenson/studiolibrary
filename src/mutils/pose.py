@@ -61,6 +61,7 @@ import mutils
 import msn.maya.rig.query
 import shared.python.math
 import shared.maya.namespace
+import msn.maya.rig.types.character
 
 try:
     import maya.cmds
@@ -339,6 +340,24 @@ class Pose(mutils.TransferObject):
         for rig in self._rig_list:
             rig.set_ik_states(False)
 
+    def isCharacterRig(self, rig):
+        return isinstance(rig, msn.maya.rig.types.character.Rig)
+
+    def listApplyRelativeTo(self, applyRelativeTo):
+        if applyRelativeTo.lower() == "root":
+            return self.listRootControls()
+        elif applyRelativeTo.lower() == "cog":
+            return self.listCogControls()
+
+    def listRootControls(self):
+        return ["global_mover", "root"]
+
+    def listCogControls(self):
+        return ["global_mover", "root", "cog"]
+
+    def isPosingRig(self):
+        return bool(self._rig_list)
+
     def beforeLoad(self, clearSelection=True):
         """
         Called before loading the pose.
@@ -567,6 +586,25 @@ class Pose(mutils.TransferObject):
         if clearCache or not batchMode or not self._mtime:
             self._mtime = self.mtime()
 
+        if self.isPosingRig():
+
+            if applyRelativeTo:
+                remove_target_nodes = self.listApplyRelativeTo(applyRelativeTo)
+
+                for node in self._data.get("objects").keys():
+                    if node.split(':')[-1].lower() in remove_target_nodes:
+                        self._data['objects'].pop(node)
+
+            ik_controllers = []
+            for rig in self._rig_list:
+                for ik_system in rig.ik_systems:
+                    ik_controllers.append(ik_system.control)
+                    ik_controllers.append(ik_system.pole_vector_control)
+
+            for node in self._data.get("objects").keys():
+                if node in ik_controllers:
+                    self._data["objects"].pop(node)
+
         mtime = self._mtime
 
         cacheKey = \
@@ -729,4 +767,3 @@ class Pose(mutils.TransferObject):
                 except (ValueError, RuntimeError):
                     cache[idx] = (None, None)
                     logger.debug('Ignoring %s', dstAttribute.fullname())
-

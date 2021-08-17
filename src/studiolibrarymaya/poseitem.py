@@ -422,7 +422,7 @@ class PoseItem(baseitem.BaseItem):
             self._options['mirrorTable'] = self.mirrorTable()
             self._options['objects'] = maya.cmds.ls(selection=True) or []
             self._options['additive'] = self.currentLoadValue("additive")
-            self._options['applyRelativeTo'] = self.currentLoadValue("applyRelativeTo")
+            self._options['applyRelativeTo'] = self.applyRelativeTo("applyRelativeTo")
 
         searchAndReplace = None
         if self.currentLoadValue("searchAndReplaceEnabled"):
