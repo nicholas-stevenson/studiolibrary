@@ -35,10 +35,13 @@ def poseVersion():
 
 def poseVersionSummary():
     msg = list()
+    msg.append("Latest Pose Version: 1.1.0")
+
+    msg.append("\n")
 
     msg.append("1.1.0")
-    msg.append("These poses contain additional Matrix data and are compatible with Animation Layers")
-    msg.append("and Relative To posing.")
+    msg.append("These contain additional Matrix data and are compatible")
+    msg.append("with Animation Layers and Relative To posing.")
 
     msg.append("\n")
 
