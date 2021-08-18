@@ -36,8 +36,14 @@ def poseVersion():
 def poseVersionSummary():
     msg = list()
 
-    msg.append("1.1.0 : These poses contain additional Matrix data and are compatible with Animation Layers.")
-    msg.append("1.0.0 : This is the base Studio Library pose version.")
+    msg.append("1.1.0")
+    msg.append("These poses contain additional Matrix data and are compatible with Animation Layers")
+    msg.append("and Relative To posing.")
+
+    msg.append("\n")
+
+    msg.append("1.0.0")
+    msg.append("This is the base Studio Library pose version.")
 
     return '\n'.join(msg)
 
