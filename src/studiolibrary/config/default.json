@@ -16,13 +16,13 @@
   "databasePath": "{root}/.studiolibrary/database.json",
 
   // Default website url
-  "helpUrl": "https://www.studiolibrary.com",
+  "helpUrl": "https://wiki.krafton.com/x/SBmFJg",
 
   // Releases url
   "releasesUrl": "https://github.com/krathjen/studiolibrary/releases",
 
   // Report issue url
-  "reportIssueUrl": "https://github.com/krathjen/studiolibrary/issues/new",
+  "reportIssueUrl": "https://jira.krafton.com/browse/PUBG-108076",
 
   // The temp location used for saving out items and thumbnails
   "tempPath": "{temp}/StudioLibrary/{user}",
