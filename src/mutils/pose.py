@@ -346,22 +346,10 @@ class Pose(mutils.TransferObject):
     def isCharacterRig(self, rig):
         return isinstance(rig, msn.maya.rig.types.character.Rig)
 
-    def listApplyRelativeTo(self, applyRelativeTo):
-        if applyRelativeTo.lower() == "root":
-            return self.listRootControls()
-        elif applyRelativeTo.lower() == "cog":
-            return self.listCogControls()
-
-    def listRootControls(self):
-        return ["global_mover", "root"]
-
-    def listCogControls(self):
-        return ["global_mover", "root", "cog"]
-
     def isPosingRig(self):
         return bool(self._rig_list)
 
-    def relativeToRoot(self):
+    def applyRelativeTo(self, relativeTo):
         cog, cog_data = self.getNodeByName('cog')
         root, root_data = self.getNodeByName('root')
 
@@ -375,48 +363,31 @@ class Pose(mutils.TransferObject):
 
         root_current_local_matrix = shared.maya.api.matrix.get_matrix(root, "matrix")
         root_current_world_matrix = shared.maya.api.matrix.get_matrix(root, "matrix")
-
-        cog_current_parent_matrix = shared.maya.api.matrix.get_matrix(cog, "parentMatrix")
-        cog_world_matrix = (cog_pose_world_matrix * root_pose_world_matrix.inverse()) * root_current_local_matrix
-        cog_local_matrix = cog_world_matrix * cog_current_parent_matrix.inverse()
-
-        cog_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_local_matrix)
-        cog_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_world_matrix)
-
-        root_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_current_local_matrix)
-        root_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_current_world_matrix)
-
-    def relativeToCog(self):
-        cog, cog_data = self.getNodeByName('cog')
-        root, root_data = self.getNodeByName('root')
-
-        if not cog or not root:
-            logger.warning("Pose is missing data for bones needed to apply relatively to the Root, falling back to non-relative behavior.")
-            print("Bones missing from pose: {}".format(",".join([i.split(':')[-1] for i in [cog, root] if i])))
-            return
+        root_current_parent_matrix = shared.maya.api.matrix.get_matrix(root, "parentMatrix")
 
         cog_current_local_matrix = shared.maya.api.matrix.get_matrix(cog, "matrix")
         cog_current_world_matrix = shared.maya.api.matrix.get_matrix(cog, "worldMatrix")
+        cog_current_parent_matrix = shared.maya.api.matrix.get_matrix(cog, "parentMatrix")
 
-        cog_pose_world_matrix = om2.MMatrix(cog_data["attrs"]["worldMatrix"]["value"])
-        root_pose_world_matrix = om2.MMatrix(root_data["attrs"]["worldMatrix"]["value"])
-        root_current_parent_matrix = shared.maya.api.matrix.get_matrix(root, "parentMatrix")
+        if relativeTo.lower() == 'root':
+            world_matrix = (cog_pose_world_matrix * root_pose_world_matrix.inverse()) * root_current_local_matrix
+            local_matrix = world_matrix * cog_current_parent_matrix.inverse()
 
-        root_world_matrix = (root_pose_world_matrix * cog_pose_world_matrix.inverse()) * cog_current_world_matrix
-        root_local_matrix = root_world_matrix * root_current_parent_matrix.inverse()
+            cog_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
+            cog_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
 
-        root_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_local_matrix)
-        root_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_world_matrix)
+            root_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_current_local_matrix)
+            root_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_current_world_matrix)
 
-        cog_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_local_matrix)
-        cog_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_world_matrix)
+        elif relativeTo.lower() == 'cog':
+            world_matrix = (root_pose_world_matrix * cog_pose_world_matrix.inverse()) * cog_current_world_matrix
+            local_matrix = world_matrix * root_current_parent_matrix.inverse()
 
+            root_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
+            root_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
 
-        # if global_mover:
-        #     global_mover_local_matrix = shared.maya.api.matrix.get_matrix(global_mover, "matrix")
-        #     global_mover_world_matrix = shared.maya.api.matrix.get_matrix(global_mover, "worldMatrix")
-        #     global_mover_data["attrs"]["matrix"]["value"] = global_mover_local_matrix
-        #     global_mover_data["attrs"]["worldMatrix"]["value"] = global_mover_world_matrix
+            cog_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_local_matrix)
+            cog_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_world_matrix)
 
     def getNodeByName(self, name):
         for node in self._data.get("objects").keys():
@@ -656,10 +627,7 @@ class Pose(mutils.TransferObject):
         if self.isPosingRig():
 
             if self.version() > "1.0.0" and applyRelativeTo:
-                if applyRelativeTo.lower() == 'root':
-                    self.relativeToRoot()
-                elif applyRelativeTo.lower() == 'cog':
-                    self.relativeToCog()
+                self.applyRelativeTo(applyRelativeTo)
             else:
                 logging.warning("This pose must be re-saved to allow for relative posing, falling back to non-relative behavior.")
 
