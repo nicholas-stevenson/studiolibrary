@@ -625,11 +625,11 @@ class Pose(mutils.TransferObject):
             self._mtime = self.mtime()
 
         if self.isPosingRig():
-
-            if self.version() > "1.0.0" and applyRelativeTo:
-                self.applyRelativeTo(applyRelativeTo)
-            else:
-                logging.warning("This pose must be re-saved to allow for relative posing, falling back to non-relative behavior.")
+            if applyRelativeTo:
+                if self.version() > "1.0.0":
+                    self.applyRelativeTo(applyRelativeTo)
+                else:
+                    logging.warning("This pose must be re-saved to allow for relative posing, falling back to non-relative behavior.")
 
             ik_controllers = []
             for rig in self._rig_list:
