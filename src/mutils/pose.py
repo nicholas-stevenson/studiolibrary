@@ -435,7 +435,7 @@ class Pose(mutils.TransferObject):
         current_time = maya.cmds.currentTime(query=True)
 
         maya.cmds.currentTime(current_time + 1)
-        maya.cmds.currentTime(current_time - 1)
+        maya.cmds.currentTime(current_time)
 
     def hasTransforms(self, attrs_list):
         for attr in attrs_list:
