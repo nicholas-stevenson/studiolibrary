@@ -413,10 +413,6 @@ class Pose(mutils.TransferObject):
             maya.cmds.autoKeyframe(edit=True, state=False)
             maya.cmds.select(clear=clearSelection)
 
-            if self._rig_list:
-                self.captureRigStates()
-                self.setRigsToPosing()
-
     def afterLoad(self):
         """Called after loading the pose."""
         if not self._isLoading:
@@ -434,9 +430,12 @@ class Pose(mutils.TransferObject):
 
         logger.debug('Loaded "%s"', self.path())
 
-        if self._rig_list:
-            self.restoreRigStates()
-            self.resetRigList()
+    def refreshSceneState(self):
+        maya.cmds.refresh(currentView=True)
+        current_time = maya.cmds.currentTime(query=True)
+
+        maya.cmds.currentTime(current_time + 1)
+        maya.cmds.currentTime(current_time - 1)
 
     def hasTransforms(self, attrs_list):
         for attr in attrs_list:
@@ -498,7 +497,10 @@ class Pose(mutils.TransferObject):
             srcAttribute, dstAttribute, srcMirrorValue = data
 
             if self.isTransform(srcAttribute.attr()):
-                srcAttribute.setValue(maya.cmds.getAttr(srcAttribute.fullname()))
+                value = maya.cmds.getAttr(srcAttribute.fullname())
+                # if self.isRotationTransform(srcAttribute.attr()):
+                #      value = shared.python.math.unwind_360(value)
+                srcAttribute.setValue(value)
 
         for node, matrix in matrix_update.items():
             maya.cmds.xform(node, matrix=matrix, objectSpace=True)
@@ -516,6 +518,7 @@ class Pose(mutils.TransferObject):
 
     @mutils.timing
     @shared.maya.decorators.disable_auto_keyframe
+    @shared.maya.decorators.as_dg
     def load(
             self,
             objects=None,
@@ -566,6 +569,10 @@ class Pose(mutils.TransferObject):
 
         self.updateRigList()
 
+        if self._rig_list:
+            self.captureRigStates()
+            self.setRigsToPosing()
+
         self.updateCache(
             objects=objects,
             namespaces=namespaces,
@@ -586,13 +593,18 @@ class Pose(mutils.TransferObject):
                            additive=additive)
         finally:
             if not batchMode:
+
+                if self._rig_list:
+                    self.restoreRigStates()
+                    self.resetRigList()
+
                 self.afterLoad()
 
                 # Return the focus to the Maya window
                 maya.cmds.setFocus("MayaWindow")
 
         if refresh:
-            maya.cmds.refresh(currentView=True)
+            self.refreshSceneState()
 
     def updateCache(
             self,

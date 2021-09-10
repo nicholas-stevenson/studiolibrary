@@ -336,10 +336,11 @@ class Attribute(object):
             if value > maximum:
                 value = maximum
 
+        kwargs.setdefault("attribute", self.attr())
         kwargs.setdefault("value", value)
         kwargs.setdefault("respectKeyable", respectKeyable)
 
-        maya.cmds.setKeyframe(self.fullname(), **kwargs)
+        maya.cmds.setKeyframe(self.name(), **kwargs)
 
     def setStaticKeyframe(self, value, time, option):
         """
