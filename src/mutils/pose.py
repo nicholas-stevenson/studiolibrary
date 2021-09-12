@@ -341,7 +341,7 @@ class Pose(mutils.TransferObject):
 
     def setRigsToPosing(self):
         for rig in self._rig_list:
-            rig.set_ik_states(False)
+            rig.set_ik_states(False, keyframe=True)
 
     def isCharacterRig(self, rig):
         return isinstance(rig, msn.maya.rig.types.character.Rig)
@@ -432,10 +432,6 @@ class Pose(mutils.TransferObject):
 
     def refreshSceneState(self):
         maya.cmds.refresh(currentView=True)
-        current_time = maya.cmds.currentTime(query=True)
-
-        maya.cmds.currentTime(current_time + 1)
-        maya.cmds.currentTime(current_time)
 
     def hasTransforms(self, attrs_list):
         for attr in attrs_list:
