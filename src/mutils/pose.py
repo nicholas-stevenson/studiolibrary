@@ -56,15 +56,16 @@ pose.load(objects=["Character1:Hand_L", "Character1:Finger_L"])
 """
 import logging
 
-import mutils
-
 import msn.maya.rig.query
-import shared.python.math
-import shared.maya.namespace
+import msn.maya.rig.types.character
+import mutils
 import shared.maya.api.matrix
 import shared.maya.api.object
-import msn.maya.rig.types.character
 import shared.maya.decorators
+import shared.maya.namespace
+import shared.python.math
+import shared.maya.hierarchy
+import shared.maya.animation.cache
 
 try:
     import maya.cmds
@@ -339,15 +340,30 @@ class Pose(mutils.TransferObject):
         for rig in self._rig_list:
             rig.restore_rig_states()
 
-    def setRigsToPosing(self):
+    def setRigsToPosing(self, keyframe=False):
         for rig in self._rig_list:
-            rig.set_ik_states(False, keyframe=True)
+            for ik_system in rig.ik_systems:
+                if not ik_system.ik_state or not self.isIkSystemPosing(ik_system):
+                    continue
+
+                if keyframe:
+                    ik_system.key()
+
+                ik_system.ik_state = False
 
     def isCharacterRig(self, rig):
         return isinstance(rig, msn.maya.rig.types.character.Rig)
 
     def isPosingRig(self):
         return bool(self._rig_list)
+
+    def isIkSystemPosing(self, ik_system):
+        for bone in ik_system.bone_list:
+            bone_parents = shared.maya.hierarchy.list_hierarchy(bone)
+            posing_nodes = set([i[1].name() for i in self._cache])
+            if any([b in posing_nodes for b in bone_parents + [bone]]):
+                return True
+        return False
 
     def applyRelativeTo(self, relativeTo):
         cog, cog_data = self.getNodeByName('cog')
@@ -432,6 +448,15 @@ class Pose(mutils.TransferObject):
 
     def refreshSceneState(self):
         maya.cmds.refresh(currentView=True)
+
+        '''
+        TODO: Test if this is more stable in Maya 2022.  The visible cache
+              can get stuck, and flushing the cache can resolve the issue.
+              However, Maya is very unstable when flushing the geometry cache,
+              so we might have to live with a glitchy cache unless this action
+              is more stable in newer versions of Maya.
+        '''
+        #shared.maya.animation.cache.invalidate_playback_range()
 
     def hasTransforms(self, attrs_list):
         for attr in attrs_list:
@@ -565,10 +590,6 @@ class Pose(mutils.TransferObject):
 
         self.updateRigList()
 
-        if self._rig_list:
-            self.captureRigStates()
-            self.setRigsToPosing()
-
         self.updateCache(
             objects=objects,
             namespaces=namespaces,
@@ -582,6 +603,13 @@ class Pose(mutils.TransferObject):
             applyRelativeTo=applyRelativeTo
         )
 
+        if self.isPosingRig():
+            self.captureRigStates()
+            self.setRigsToPosing(keyframe=key)
+
+        if self.version() > "1.0.0":
+            self.updateValuesFromMatrices()
+
         self.beforeLoad(clearSelection=clearSelection)
 
         try:
@@ -590,7 +618,7 @@ class Pose(mutils.TransferObject):
         finally:
             if not batchMode:
 
-                if self._rig_list:
+                if self.isPosingRig():
                     self.restoreRigStates()
                     self.resetRigList()
 
@@ -697,9 +725,6 @@ class Pose(mutils.TransferObject):
                     ignoreConnected=ignoreConnected,
                     usingNamespaces=usingNamespaces,
                 )
-
-            if self.version() > "1.0.0":
-                self.updateValuesFromMatrices()
 
         if not self.cache():
             text = "No objects match when loading data. " \
