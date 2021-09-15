@@ -538,7 +538,9 @@ class Pose(mutils.TransferObject):
         return matrix, worldMatrix
 
     @mutils.timing
+    @shared.maya.decorators.undo
     @shared.maya.decorators.disable_auto_keyframe
+    @shared.maya.decorators.restore_selection
     @shared.maya.decorators.as_dg
     def load(
             self,
@@ -610,7 +612,7 @@ class Pose(mutils.TransferObject):
         if self.version() > "1.0.0":
             self.updateValuesFromMatrices()
 
-        self.beforeLoad(clearSelection=clearSelection)
+        maya.cmds.select(clear=True)
 
         try:
             self.loadCache(blend=blend, key=key, mirror=mirror,
@@ -621,8 +623,6 @@ class Pose(mutils.TransferObject):
                 if self.isPosingRig():
                     self.restoreRigStates()
                     self.resetRigList()
-
-                self.afterLoad()
 
                 # Return the focus to the Maya window
                 maya.cmds.setFocus("MayaWindow")
