@@ -670,11 +670,11 @@ class Pose(mutils.TransferObject):
             ik_controllers = []
             for rig in self._rig_list:
                 for ik_system in rig.ik_systems:
-                    ik_controllers.append(ik_system.control)
-                    ik_controllers.append(ik_system.pole_vector_control)
+                    ik_controllers.append(shared.maya.namespace.strip_namespace(ik_system.control))
+                    ik_controllers.append(shared.maya.namespace.strip_namespace(ik_system.pole_vector_control))
 
             for node in self._data.get("objects").keys():
-                if node in ik_controllers:
+                if shared.maya.namespace.strip_namespace(node) in ik_controllers:
                     self._data["objects"].pop(node)
 
         mtime = self._mtime
