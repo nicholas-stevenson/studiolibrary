@@ -66,6 +66,7 @@ import shared.maya.namespace
 import shared.python.math
 import shared.maya.hierarchy
 import shared.maya.animation.cache
+import shared.maya.attribute
 
 try:
     import maya.cmds
@@ -351,6 +352,24 @@ class Pose(mutils.TransferObject):
 
                 ik_system.ik_state = False
 
+    def keyCommonGimbalNodes(self, rig):
+        """
+        The switch from DG to Parallel evaluation mode and while keying nodes on an animation layer,
+        has an annoying glitch of re-evaluating the transforms of certain nodes when Parallel mode is re-enabled.
+
+        It seems to be something with keying individual transform channels one at a time as hitting the whole transform
+        group with a setKeyframe() operation allows the nodes to hold their position, after parallel mode is re-enabled
+        """
+        gimbal_nodes = ["{}:{}".format(rig.namespace, b) for b in
+                        [rig.bone_map.clavicle_left, rig.bone_map.clavicle_right, rig.bone_map.hip_left, rig.bone_map.hip_right]]
+
+        posing_nodes = set([i[1].name() for i in self._cache])
+
+        for node in gimbal_nodes:
+            if node in posing_nodes:
+                for attribute in shared.maya.attribute.list_keyable_transforms(node):
+                    maya.cmds.setKeyframe(node, attribute=attribute)
+
     def isCharacterRig(self, rig):
         return isinstance(rig, msn.maya.rig.types.character.Rig)
 
@@ -512,7 +531,7 @@ class Pose(mutils.TransferObject):
             if self.isTransform(srcAttribute.attr()):
                 matrix, worldMatrix = self.matrixFromCache(self.cache(), srcAttribute.name())
                 if matrix:
-                    maya.cmds.xform(srcAttribute.name(), matrix=matrix, objectSpace=True)
+                    maya.cmds.xform(srcAttribute.name(), matrix=matrix, worldSpace=False)
 
         for idx, data in enumerate(self.cache()):
             srcAttribute, dstAttribute, srcMirrorValue = data
@@ -524,7 +543,7 @@ class Pose(mutils.TransferObject):
                 srcAttribute.setValue(value)
 
         for node, matrix in matrix_update.items():
-            maya.cmds.xform(node, matrix=matrix, objectSpace=True)
+            maya.cmds.xform(node, matrix=matrix, worldSpace=False)
 
     def matrixFromCache(self, cache, node):
         matrix, worldMatrix = None, None
@@ -621,6 +640,11 @@ class Pose(mutils.TransferObject):
             if not batchMode:
 
                 if self.isPosingRig():
+
+                    if key:
+                        for rig in self._rig_list:
+                            self.keyCommonGimbalNodes(rig)
+
                     self.restoreRigStates()
                     self.resetRigList()
 
