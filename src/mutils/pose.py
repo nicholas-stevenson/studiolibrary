@@ -58,6 +58,7 @@ import logging
 
 import msn.maya.rig.query
 import msn.maya.rig.types.character
+import msn.maya.rig.components.ik
 import mutils
 import shared.maya.api.matrix
 import shared.maya.api.object
@@ -369,14 +370,28 @@ class Pose(mutils.TransferObject):
         between IK and FK, we need these stored values from the pose.
         """
 
-        ik_twist_attributes = ["upperarm_twist",
+        arm_twist_attributes = ["upperarm_twist",
                                "upperarm_corrective_offset",
                                "forearm_twist",
                                "wrist_twist_offset"]
 
+        leg_twist_attributes = ["hip_twist",
+                                "hip_corrective_offset",
+                                "calf_twist",
+                                "calf_twist_offset"]
+
+
         for rig in self._rig_list:
             for ik_system in rig.ik_systems:
                 if ik_system.ik_state and ik_system.control in self._ik_controllers.keys():
+
+                    if isinstance(ik_system, msn.maya.rig.components.ik.ArmIKSystem):
+                        ik_twist_attributes = arm_twist_attributes
+                    elif isinstance(ik_system, msn.maya.rig.components.ik.LegIKSystem):
+                        ik_twist_attributes = leg_twist_attributes
+                    else:
+                        continue  # Unrecognized ik type?!
+
                     for attribute in ik_twist_attributes:
                         pose_attributes = self._ik_controllers.get(ik_system.control).get("attrs")
                         if attribute in pose_attributes:
