@@ -148,6 +148,7 @@ class Pose(mutils.TransferObject):
 
         # Pubg internal variables
         self._rig_list = list()
+        self._ik_controllers = dict()
 
     def createObjectData(self, name):
         """
@@ -332,6 +333,7 @@ class Pose(mutils.TransferObject):
 
     def resetRigList(self):
         self._rig_list = list()
+        self._ik_controllers = dict()
 
     def captureRigStates(self):
         for rig in self._rig_list:
@@ -351,6 +353,40 @@ class Pose(mutils.TransferObject):
                     ik_system.key()
 
                 ik_system.ik_state = False
+
+    def loadIkTwistValues(self, keyframe):
+        """
+        ik twist and corrective offsets are a temporary fix, exposed on the rig's limb ik controllers,
+        which allow animators to manually inject offset values into both the twist bones,
+        as well as the "twist" motion of the upper arms and forearms.  This is a legacy issue from an animation rig
+        generated in Motion Builder, where instead of treating limbs like a single plane lever, actually twisted the bones
+        on themselves.
+
+        Also for the twist bones, this was because the twists were broken in many scenes of the motion builder rig,
+        so some animations have twist values, others don't, and others have weird values baked in.
+
+        So while we want to actually pose IK controllers and instead want to leave that to the animation rig to switch
+        between IK and FK, we need these stored values from the pose.
+        """
+
+        ik_twist_attributes = ["upperarm_twist",
+                               "upperarm_corrective_offset",
+                               "forearm_twist",
+                               "wrist_twist_offset"]
+
+        for rig in self._rig_list:
+            for ik_system in rig.ik_systems:
+                if ik_system.ik_state and ik_system.control in self._ik_controllers.keys():
+                    for attribute in ik_twist_attributes:
+                        pose_attributes = self._ik_controllers.get(ik_system.control).get("attrs")
+                        if attribute in pose_attributes:
+                            value = pose_attributes.get(attribute).get("value")
+                            shared.maya.attribute.set_attribute(ik_system.control, attribute, value)
+
+                            if keyframe:
+                                maya.cmds.setKeyframe(ik_system.control, attribute=attribute, value=value)
+
+
 
     def keyCommonGimbalNodes(self, rig):
         """
@@ -385,8 +421,8 @@ class Pose(mutils.TransferObject):
         return False
 
     def applyRelativeTo(self, relativeTo):
-        cog, cog_data = self.getNodeByName('cog')
-        root, root_data = self.getNodeByName('root')
+        cog, cog_data = self.getDataNodeByName('cog')
+        root, root_data = self.getDataNodeByName('root')
 
         if not cog or not root:
             logger.warning("Pose is missing data for bones needed to apply relatively to the Root, falling back to non-relative behavior.")
@@ -424,7 +460,8 @@ class Pose(mutils.TransferObject):
             cog_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_local_matrix)
             cog_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_world_matrix)
 
-    def getNodeByName(self, name):
+    def getDataNodeByName(self, name):
+        """ Fetch a node by name from the posing data.  This is a namespace-less search."""
         for node in self._data.get("objects").keys():
             if name == node.split(":")[-1]:
                 return node, self._data.get("objects").get(node)
@@ -646,6 +683,7 @@ class Pose(mutils.TransferObject):
                             self.keyCommonGimbalNodes(rig)
 
                     self.restoreRigStates()
+                    self.loadIkTwistValues(keyframe=key)
                     self.resetRigList()
 
                 # Return the focus to the Maya window
@@ -692,14 +730,21 @@ class Pose(mutils.TransferObject):
                     logging.warning("This pose must be re-saved to allow for relative posing, falling back to non-relative behavior.")
 
             ik_controllers = []
+            pole_vector_controllers = []
+
             for rig in self._rig_list:
                 for ik_system in rig.ik_systems:
                     ik_controllers.append(shared.maya.namespace.strip_namespace(ik_system.control))
-                    ik_controllers.append(shared.maya.namespace.strip_namespace(ik_system.pole_vector_control))
+                    pole_vector_controllers.append(shared.maya.namespace.strip_namespace(ik_system.pole_vector_control))
 
             for node in self._data.get("objects").keys():
-                if shared.maya.namespace.strip_namespace(node) in ik_controllers:
-                    self._data["objects"].pop(node)
+                node_no_ns = shared.maya.namespace.strip_namespace(node)
+
+                if node_no_ns in ik_controllers + pole_vector_controllers:
+                    if node_no_ns in ik_controllers:
+                        self._ik_controllers[node] = self._data["objects"].pop(node)
+                    else:
+                        self._data["objects"].pop(node)
 
         mtime = self._mtime
 
