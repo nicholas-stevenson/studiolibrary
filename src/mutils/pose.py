@@ -355,6 +355,20 @@ class Pose(mutils.TransferObject):
 
                 ik_system.ik_state = False
 
+    def appendFkSystems(self, objects):
+        """
+        Studio Library does not pose IK controllers and instead poses the FK bones.  But if an animator selects only an IK controller and
+        attempts to pose an arm or leg, Studio Library will silently do nothing as it will ignore the posing of this selected IK controller.
+
+        So in the event that we have ik systems selected, ensure that the object list also includes any FK bones that are part of that same system.
+        """
+        for rig in self._rig_list:
+            for ik_system in rig.ik_systems:
+                if ik_system.ik_state and any([ik_system.control in objects, ik_system.pole_vector_control in objects]):
+                    for bone in ik_system.bone_list:
+                        if bone not in objects:
+                            objects.append(bone)
+
     def loadIkTwistValues(self, keyframe):
         """
         ik twist and corrective offsets are a temporary fix, exposed on the rig's limb ik controllers,
@@ -371,15 +385,14 @@ class Pose(mutils.TransferObject):
         """
 
         arm_twist_attributes = ["upperarm_twist",
-                               "upperarm_corrective_offset",
-                               "forearm_twist",
-                               "wrist_twist_offset"]
+                                "upperarm_corrective_offset",
+                                "forearm_twist",
+                                "wrist_twist_offset"]
 
         leg_twist_attributes = ["hip_twist",
                                 "hip_corrective_offset",
                                 "calf_twist",
                                 "calf_twist_offset"]
-
 
         for rig in self._rig_list:
             for ik_system in rig.ik_systems:
@@ -428,6 +441,17 @@ class Pose(mutils.TransferObject):
         return bool(self._rig_list)
 
     def isIkSystemPosing(self, ik_system):
+        """
+        Test if we are posing either a part of a rig's IK system, or a parent of that ik system.  This is intended to test
+        if an IK system needs to be switched to FK during posing.
+
+        Args:
+            ik_system (msn.maya.rig.components.ik.IKSystem): Ik system to test with.
+
+        Returns (bool): True if either an FK bone of an ik system, or a parent of that system, is being posed.
+                        False if neither the ik system or any of its parent nodes are part of the active posing nodes.
+        """
+
         for bone in ik_system.bone_list:
             bone_parents = shared.maya.hierarchy.list_hierarchy(bone)
             posing_nodes = set([i[1].name() for i in self._cache])
@@ -662,6 +686,9 @@ class Pose(mutils.TransferObject):
         self._namespaces = namespaces  # Update the TransferObject's namespace list
 
         self.updateRigList()
+
+        if self.isPosingRig():
+            self.appendFkSystems(objects)
 
         self.updateCache(
             objects=objects,
