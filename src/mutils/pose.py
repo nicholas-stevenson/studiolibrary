@@ -151,6 +151,9 @@ class Pose(mutils.TransferObject):
         self._rig_list = list()
         self._ik_controllers = dict()
 
+        # Temporary variables used when applying a pose relative to another another node
+        self._relative_to_snapshot = dict()
+
     def createObjectData(self, name):
         """
         Create the object data for the given object name.
@@ -444,6 +447,9 @@ class Pose(mutils.TransferObject):
             print("Bones missing from pose: {}".format(",".join([i.split(':')[-1] for i in [cog, root] if i])))
             return
 
+        self._relative_to_snapshot[cog] = dict(cog_data)
+        self._relative_to_snapshot[root] = dict(root_data)
+
         cog_pose_world_matrix = om2.MMatrix(cog_data["attrs"]["worldMatrix"]["value"])
         root_pose_world_matrix = om2.MMatrix(root_data["attrs"]["worldMatrix"]["value"])
 
@@ -696,6 +702,12 @@ class Pose(mutils.TransferObject):
                     if key:
                         for rig in self._rig_list:
                             self.keyCommonGimbalNodes(rig)
+
+                    if applyRelativeTo:
+                        for key, value in self._relative_to_snapshot.items():
+                            self._data.get("objects")[key] = value
+
+                        self._relative_to_snapshot = dict()
 
                     self.restoreRigStates()
                     self.loadIkTwistValues(keyframe=key)
