@@ -427,10 +427,17 @@ class Pose(mutils.TransferObject):
         It seems to be something with keying individual transform channels one at a time as hitting the whole transform
         group with a setKeyframe() operation allows the nodes to hold their position, after parallel mode is re-enabled
         """
+        if not isinstance(rig, msn.maya.rig.types.character.Rig):
+            return
+
         gimbal_nodes = ["{}:{}".format(rig.namespace, b) for b in
                         [rig.bone_map.clavicle_left, rig.bone_map.clavicle_right, rig.bone_map.hip_left, rig.bone_map.hip_right]]
 
-        posing_nodes = set([i[1].name() for i in self._cache])
+        posing_nodes = []
+
+        for pair in self._cache:
+            if pair[0] and pair[1]:
+                posing_nodes.append(pair[1].name())
 
         for node in gimbal_nodes:
             if node in posing_nodes:
