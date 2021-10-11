@@ -68,6 +68,7 @@ import shared.python.math
 import shared.maya.hierarchy
 import shared.maya.animation.cache
 import shared.maya.attribute
+import copy
 
 try:
     import maya.cmds
@@ -153,6 +154,7 @@ class Pose(mutils.TransferObject):
 
         # Temporary variables used when applying a pose relative to another another node
         self._relative_to_snapshot = dict()
+        self._gun_relative_to_snapshot = dict()
 
     def createObjectData(self, name):
         """
@@ -478,8 +480,8 @@ class Pose(mutils.TransferObject):
             print("Bones missing from pose: {}".format(",".join([i.split(':')[-1] for i in [cog, root] if i])))
             return
 
-        self._relative_to_snapshot[cog] = dict(cog_data)
-        self._relative_to_snapshot[root] = dict(root_data)
+        self._relative_to_snapshot[cog] = copy.deepcopy(cog_data)
+        self._relative_to_snapshot[root] = copy.deepcopy(root_data)
 
         cog_pose_world_matrix = om2.MMatrix(cog_data["attrs"]["worldMatrix"]["value"])
         root_pose_world_matrix = om2.MMatrix(root_data["attrs"]["worldMatrix"]["value"])
@@ -506,16 +508,40 @@ class Pose(mutils.TransferObject):
             world_matrix = (root_pose_world_matrix * cog_pose_world_matrix.inverse()) * cog_current_world_matrix
             local_matrix = world_matrix * root_current_parent_matrix.inverse()
 
-            root_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
             root_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
+            root_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
 
-            cog_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_local_matrix)
             cog_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_world_matrix)
+            cog_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_local_matrix)
+
+    def gunRelativeTo(self, relativeTo):
+        gun, gun_data = self.getDataNodeByName('gun_ctrl')
+        cog, cog_data = self.getDataNodeByName('cog')
+
+        if not gun or not cog:
+            logger.warning("Pose is missing data for bones needed to apply relatively to the Root, falling back to non-relative behavior.")
+            print("Bones missing from pose: {}".format(",".join([i.split(':')[-1] for i in [gun, cog] if i])))
+            return
+
+        self._gun_relative_to_snapshot[gun] = copy.deepcopy(gun_data)
+
+        gun_pose_world_matrix = om2.MMatrix(gun_data["attrs"]["worldMatrix"]["value"])
+        cog_pose_world_matrix = om2.MMatrix(cog_data["attrs"]["worldMatrix"]["value"])
+
+        gun_current_parent_matrix = shared.maya.api.matrix.get_matrix(gun, "parentMatrix")
+        cog_current_world_matrix = shared.maya.api.matrix.get_matrix(cog, "worldMatrix")
+
+        if relativeTo.lower() == 'character':
+            world_matrix = (gun_pose_world_matrix * cog_pose_world_matrix.inverse()) * cog_current_world_matrix
+            local_matrix = world_matrix * gun_current_parent_matrix.inverse()
+
+            gun_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
+            gun_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
 
     def getDataNodeByName(self, name):
         """ Fetch a node by name from the posing data.  This is a namespace-less search."""
         for node in self._data.get("objects").keys():
-            if name == node.split(":")[-1]:
+            if name.lower() == node.split(":")[-1].lower():
                 return node, self._data.get("objects").get(node)
         return None, None
 
@@ -667,7 +693,8 @@ class Pose(mutils.TransferObject):
             clearSelection=False,
             ignoreConnected=False,
             searchAndReplace=None,
-            applyRelativeTo=None
+            applyRelativeTo=None,
+            gunRelativeTo=None
     ):
         """
         Load the pose to the given objects or namespaces.
@@ -713,7 +740,8 @@ class Pose(mutils.TransferObject):
             onlyConnected=onlyConnected,
             ignoreConnected=ignoreConnected,
             searchAndReplace=searchAndReplace,
-            applyRelativeTo=applyRelativeTo
+            applyRelativeTo=applyRelativeTo,
+            gunRelativeTo=gunRelativeTo
         )
 
         if self.isPosingRig():
@@ -740,8 +768,12 @@ class Pose(mutils.TransferObject):
                     if applyRelativeTo:
                         for key, value in self._relative_to_snapshot.items():
                             self._data.get("objects")[key] = value
-
                         self._relative_to_snapshot = dict()
+
+                    if gunRelativeTo:
+                        for key, value in self._gun_relative_to_snapshot.items():
+                            self._data.get("objects")[key] = value
+                        self._gun_relative_to_snapshot = dict()
 
                     self.restoreRigStates()
                     self.loadIkTwistValues(keyframe=key)
@@ -764,7 +796,8 @@ class Pose(mutils.TransferObject):
             batchMode=False,
             clearCache=True,
             searchAndReplace=None,
-            applyRelativeTo=None
+            applyRelativeTo=None,
+            gunRelativeTo=None
     ):
         """
         Update the pose cache.
@@ -784,9 +817,12 @@ class Pose(mutils.TransferObject):
             self._mtime = self.mtime()
 
         if self.isPosingRig():
-            if applyRelativeTo:
+            if applyRelativeTo or gunRelativeTo:
                 if self.version() > "1.0.0":
-                    self.applyRelativeTo(applyRelativeTo)
+                    if applyRelativeTo:
+                        self.applyRelativeTo(applyRelativeTo)
+                    if gunRelativeTo and not self._gun_relative_to_snapshot:
+                        self.gunRelativeTo(gunRelativeTo)
                 else:
                     logging.warning("This pose must be re-saved to allow for relative posing, falling back to non-relative behavior.")
 

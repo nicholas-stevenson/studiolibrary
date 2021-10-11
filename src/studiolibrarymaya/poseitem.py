@@ -343,19 +343,30 @@ class PoseItem(baseitem.BaseItem):
                     },
                 ]
             },
+
+
             {
-                "name":  "pubgRigOptionsGroup",
-                "title": "Pubg Rig",
+                "name":  "applyRelativeToOptions",
+                "title": "Apply Relative To",
                 "type":  "group",
                 "order": 3,
             },
             {
                 "name":  "applyRelativeTo",
-                "title": "Relative To:",
+                "title": "Character:    ",
                 "type":  "radio",
                 "value": "None",
                 "items": ["None", "Root", "Cog"],
                 "persistent": True,
+                "persistentKey": "BaseItem"
+            },
+            {
+                "name":          "gunRelativeTo",
+                "title":         "Gun Control:",
+                "type":          "radio",
+                "value":         "Character",
+                "items":         ["None", "Character"],
+                "persistent":    True,
                 "persistentKey": "BaseItem"
             },
         ]
@@ -423,6 +434,7 @@ class PoseItem(baseitem.BaseItem):
             self._options['objects'] = maya.cmds.ls(selection=True) or []
             self._options['additive'] = self.currentLoadValue("additive")
             self._options['applyRelativeTo'] = self.applyRelativeTo("applyRelativeTo")
+            self._options['gunRelativeTo'] = self.gunRelativeTo("gunRelativeTo")
 
         searchAndReplace = None
         if self.currentLoadValue("searchAndReplaceEnabled"):
@@ -459,7 +471,8 @@ class PoseItem(baseitem.BaseItem):
         clearSelection=False,
         showBlendMessage=False,
         searchAndReplace=None,
-        applyRelativeTo=None
+        applyRelativeTo=None,
+        gunRelativeTo=None
     ):
         """
         Load the pose item to the given objects or namespaces.
@@ -510,7 +523,8 @@ class PoseItem(baseitem.BaseItem):
                 mirrorTable=mirrorTable,
                 clearSelection=clearSelection,
                 searchAndReplace=searchAndReplace,
-                applyRelativeTo=applyRelativeTo
+                applyRelativeTo=applyRelativeTo,
+                gunRelativeTo=gunRelativeTo
             )
 
         except Exception:
