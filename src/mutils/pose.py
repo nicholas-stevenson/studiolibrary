@@ -58,7 +58,9 @@ import logging
 
 import msn.maya.rig.query
 import msn.maya.rig.types.character
+import msn.maya.rig.types.weapon
 import msn.maya.rig.components.ik
+import msn.maya.rig.components.space_switch
 import mutils
 import shared.maya.api.matrix
 import shared.maya.api.object
@@ -334,7 +336,11 @@ class Pose(mutils.TransferObject):
             for namespace in self.namespaces():
                 rig = msn.maya.rig.query.get_rig(namespace)
                 if rig:
-                    self._rig_list.append(rig)
+                    if isinstance(rig, msn.maya.rig.types.weapon.Rig):
+                        if rig.parent not in self._rig_list:
+                            self._rig_list.append(rig.parent)
+                    if rig not in self._rig_list:
+                        self._rig_list.append(rig)
 
     def resetRigList(self):
         self._rig_list = list()
@@ -350,6 +356,10 @@ class Pose(mutils.TransferObject):
 
     def setRigsToPosing(self, keyframe=False):
         for rig in self._rig_list:
+
+            if isinstance(rig, msn.maya.rig.types.weapon.Rig):
+                rig = rig.parent
+
             for ik_system in rig.ik_systems:
                 if not ik_system.ik_state or not self.isIkSystemPosing(ik_system):
                     continue
@@ -453,8 +463,14 @@ class Pose(mutils.TransferObject):
 
     def isIkSystemPosing(self, ik_system):
         """
-        Test if we are posing either a part of a rig's IK system, or a parent of that ik system.  This is intended to test
-        if an IK system needs to be switched to FK during posing.
+        Returns True or False, depending on if the IK system should be switched to FK during the posing, or can be left as IK
+
+        The conditions that would cause this method to return True, and thus for the IK system to be switched to FK and keyed are.
+         - If a bone of the IK system is being posed.
+            - For example, the wrist of an Arm.
+         - If a parent of any of the IK system's FK bones are being posed.
+            - For example, posing the Cog of a character rig, you would want to disable the IKs.
+         - If a Gun's main control is being posed, and the character rig's IK systems are in Gun space.
 
         Args:
             ik_system (msn.maya.rig.components.ik.IKSystem): Ik system to test with.
@@ -463,11 +479,23 @@ class Pose(mutils.TransferObject):
                         False if neither the ik system or any of its parent nodes are part of the active posing nodes.
         """
 
+        posing_nodes = set([i[1].name() for i in self._cache])
+
         for bone in ik_system.bone_list:
             bone_parents = shared.maya.hierarchy.list_hierarchy(bone)
-            posing_nodes = set([i[1].name() for i in self._cache])
             if any([b in posing_nodes for b in bone_parents + [bone]]):
                 return True
+
+        if "gun_ctrl" in [shared.maya.namespace.strip_namespace(i).lower() for i in posing_nodes]:
+            if not ik_system.rig.weapons:
+                return False
+            else:
+                posing_namespaces = list(set([shared.maya.namespace.get_namespace(i) for i in posing_nodes]))
+                if any([weapon.namespace in posing_namespaces for weapon in ik_system.rig.weapons]):
+                    space_switch = msn.maya.rig.components.space_switch.to_space_switch_object_from_scene_object(ik_system.control)
+                    if space_switch.state == "Gun":
+                        return True
+
         return False
 
     def applyRelativeTo(self,  relativeTo, gunRelativeTo):
