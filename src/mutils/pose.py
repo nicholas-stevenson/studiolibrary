@@ -154,7 +154,6 @@ class Pose(mutils.TransferObject):
 
         # Temporary variables used when applying a pose relative to another another node
         self._relative_to_snapshot = dict()
-        self._gun_relative_to_snapshot = dict()
 
     def createObjectData(self, name):
         """
@@ -471,78 +470,93 @@ class Pose(mutils.TransferObject):
                 return True
         return False
 
-    def applyRelativeTo(self, relativeTo):
+    def applyRelativeTo(self,  relativeTo, gunRelativeTo):
         cog, cog_data = self.getDataNodeByName('cog')
         root, root_data = self.getDataNodeByName('root')
-
-        if not cog or not root:
-            logger.warning("Pose is missing data for bones needed to apply relatively to the Root, falling back to non-relative behavior.")
-            print("Bones missing from pose: {}".format(",".join([i.split(':')[-1] for i in [cog, root] if i])))
-            return
-
-        self._relative_to_snapshot[cog] = copy.deepcopy(cog_data)
-        self._relative_to_snapshot[root] = copy.deepcopy(root_data)
-
-        cog_pose_world_matrix = om2.MMatrix(cog_data["attrs"]["worldMatrix"]["value"])
-        root_pose_world_matrix = om2.MMatrix(root_data["attrs"]["worldMatrix"]["value"])
-
-        root_current_local_matrix = shared.maya.api.matrix.get_matrix(root, "matrix")
-        root_current_world_matrix = shared.maya.api.matrix.get_matrix(root, "matrix")
-        root_current_parent_matrix = shared.maya.api.matrix.get_matrix(root, "parentMatrix")
-
-        cog_current_local_matrix = shared.maya.api.matrix.get_matrix(cog, "matrix")
-        cog_current_world_matrix = shared.maya.api.matrix.get_matrix(cog, "worldMatrix")
-        cog_current_parent_matrix = shared.maya.api.matrix.get_matrix(cog, "parentMatrix")
-
-        if relativeTo.lower() == 'root':
-            world_matrix = (cog_pose_world_matrix * root_pose_world_matrix.inverse()) * root_current_local_matrix
-            local_matrix = world_matrix * cog_current_parent_matrix.inverse()
-
-            cog_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
-            cog_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
-
-            root_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_current_local_matrix)
-            root_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_current_world_matrix)
-
-        elif relativeTo.lower() == 'cog':
-            world_matrix = (root_pose_world_matrix * cog_pose_world_matrix.inverse()) * cog_current_world_matrix
-            local_matrix = world_matrix * root_current_parent_matrix.inverse()
-
-            root_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
-            root_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
-
-            cog_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_world_matrix)
-            cog_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_local_matrix)
-
-    def gunRelativeTo(self, relativeTo):
         gun, gun_data = self.getDataNodeByName('gun_ctrl')
-        cog, cog_data = self.getDataNodeByName('cog')
+        objects = self.objects()
 
-        if not gun or not cog:
-            logger.warning("Pose is missing data for bones needed to apply relatively to the Root, falling back to non-relative behavior.")
-            print("Bones missing from pose: {}".format(",".join([i.split(':')[-1] for i in [gun, cog] if i])))
-            return
+        if relativeTo:
 
-        self._gun_relative_to_snapshot[gun] = copy.deepcopy(gun_data)
+            if not cog or not root:
+                logger.warning("Pose is missing data for bones needed to apply relatively to the Root, falling back to non-relative behavior.")
+                print("Bones missing from pose: {}".format(",".join([i.split(':')[-1] for i in [cog, root] if i])))
+                return
 
-        gun_pose_world_matrix = om2.MMatrix(gun_data["attrs"]["worldMatrix"]["value"])
-        cog_pose_world_matrix = om2.MMatrix(cog_data["attrs"]["worldMatrix"]["value"])
+            self._relative_to_snapshot[cog] = copy.deepcopy(cog_data)
+            self._relative_to_snapshot[root] = copy.deepcopy(root_data)
 
-        gun_current_parent_matrix = shared.maya.api.matrix.get_matrix(gun, "parentMatrix")
-        cog_current_world_matrix = shared.maya.api.matrix.get_matrix(cog, "worldMatrix")
+            cog_pose_world_matrix = om2.MMatrix(cog_data["attrs"]["worldMatrix"]["value"])
+            root_pose_world_matrix = om2.MMatrix(root_data["attrs"]["worldMatrix"]["value"])
 
-        if relativeTo.lower() == 'character':
-            world_matrix = (gun_pose_world_matrix * cog_pose_world_matrix.inverse()) * cog_current_world_matrix
-            local_matrix = world_matrix * gun_current_parent_matrix.inverse()
+            root_current_local_matrix = shared.maya.api.matrix.get_matrix(root, "matrix")
+            root_current_world_matrix = shared.maya.api.matrix.get_matrix(root, "matrix")
+            root_current_parent_matrix = shared.maya.api.matrix.get_matrix(root, "parentMatrix")
 
-            gun_data["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
-            gun_data["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
+            cog_current_local_matrix = shared.maya.api.matrix.get_matrix(cog, "matrix")
+            cog_current_world_matrix = shared.maya.api.matrix.get_matrix(cog, "worldMatrix")
+            cog_current_parent_matrix = shared.maya.api.matrix.get_matrix(cog, "parentMatrix")
 
-    def getDataNodeByName(self, name):
-        """ Fetch a node by name from the posing data.  This is a namespace-less search."""
+            if relativeTo.lower() == 'root':
+                world_matrix = (cog_pose_world_matrix * root_pose_world_matrix.inverse()) * root_current_local_matrix
+                local_matrix = world_matrix * cog_current_parent_matrix.inverse()
+
+                objects[cog]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
+                objects[cog]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
+
+                objects[root]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_current_local_matrix)
+                objects[root]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_current_world_matrix)
+
+            elif relativeTo.lower() == 'cog':
+                world_matrix = (root_pose_world_matrix * cog_pose_world_matrix.inverse()) * cog_current_world_matrix
+                local_matrix = world_matrix * root_current_parent_matrix.inverse()
+
+                objects[root]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
+                objects[root]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
+
+                objects[cog]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_world_matrix)
+                objects[cog]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_local_matrix)
+
+        if gunRelativeTo:
+            if not cog or not gun:
+                logger.warning("Pose is missing data for bones needed to apply relatively to the Root, falling back to non-relative behavior.")
+                print("Bones missing from pose: {}".format(",".join([i.split(':')[-1] for i in [cog, gun] if i])))
+                return
+
+            self._relative_to_snapshot[gun] = copy.deepcopy(gun_data)
+
+            gun_pose_world_matrix = om2.MMatrix(gun_data["attrs"]["worldMatrix"]["value"])
+            cog_pose_world_matrix = om2.MMatrix(cog_data["attrs"]["worldMatrix"]["value"])
+
+            gun_current_parent_matrix = shared.maya.api.matrix.get_matrix(gun, "parentMatrix")
+            cog_current_world_matrix = shared.maya.api.matrix.get_matrix(cog, "worldMatrix")
+
+            if gunRelativeTo.lower() == 'character':
+                world_matrix = (gun_pose_world_matrix * cog_pose_world_matrix.inverse()) * cog_current_world_matrix
+                local_matrix = world_matrix * gun_current_parent_matrix.inverse()
+
+                objects[gun]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
+                objects[gun]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
+
+    def getDataNodeByName(self, name, as_pointer=False):
+        """
+        Fetch a node by name from the posing data.  This is a namespace-less search.
+
+        Args:
+            name (str): name of the stored node to search for
+            as_pointer (bool): If True, the returned node data will be a pointer to the in-memory snapshot of the pose.
+                            If False, a copy of the stored pose data will be returned.
+
+        Returns:
+
+
+        """
         for node in self._data.get("objects").keys():
             if name.lower() == node.split(":")[-1].lower():
-                return node, self._data.get("objects").get(node)
+                if as_pointer:
+                    return node, self._data.get("objects").get(node)
+                else:
+                    return node, copy.deepcopy(self._data.get("objects").get(node))
         return None, None
 
     def beforeLoad(self, clearSelection=True):
@@ -765,15 +779,10 @@ class Pose(mutils.TransferObject):
                         for rig in self._rig_list:
                             self.keyCommonGimbalNodes(rig)
 
-                    if applyRelativeTo:
+                    if self._relative_to_snapshot:
                         for key, value in self._relative_to_snapshot.items():
                             self._data.get("objects")[key] = value
                         self._relative_to_snapshot = dict()
-
-                    if gunRelativeTo:
-                        for key, value in self._gun_relative_to_snapshot.items():
-                            self._data.get("objects")[key] = value
-                        self._gun_relative_to_snapshot = dict()
 
                     self.restoreRigStates()
                     self.loadIkTwistValues(keyframe=key)
@@ -819,10 +828,7 @@ class Pose(mutils.TransferObject):
         if self.isPosingRig():
             if applyRelativeTo or gunRelativeTo:
                 if self.version() > "1.0.0":
-                    if applyRelativeTo:
-                        self.applyRelativeTo(applyRelativeTo)
-                    if gunRelativeTo and not self._gun_relative_to_snapshot:
-                        self.gunRelativeTo(gunRelativeTo)
+                    self.applyRelativeTo(applyRelativeTo, gunRelativeTo)
                 else:
                     logging.warning("This pose must be re-saved to allow for relative posing, falling back to non-relative behavior.")
 
