@@ -505,7 +505,6 @@ class Pose(mutils.TransferObject):
         objects = self.objects()
 
         if relativeTo:
-
             if not cog or not root:
                 logger.warning("Pose is missing data for bones needed to apply relatively to the Root, falling back to non-relative behavior.")
                 print("Bones missing from pose: {}".format(",".join([i.split(':')[-1] for i in [cog, root] if i])))
@@ -545,9 +544,9 @@ class Pose(mutils.TransferObject):
                 objects[cog]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_world_matrix)
                 objects[cog]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_local_matrix)
 
-        if gunRelativeTo:
+        if gunRelativeTo and "gun_ctrl" in [shared.maya.namespace.strip_namespace(i).lower() for i in self.objects()]:
             if not cog or not gun:
-                logger.warning("Pose is missing data for bones needed to apply relatively to the Root, falling back to non-relative behavior.")
+                logger.warning("Pose is missing data for bones needed to apply relatively to the Character, falling back to non-relative behavior.")
                 print("Bones missing from pose: {}".format(",".join([i.split(':')[-1] for i in [cog, gun] if i])))
                 return
 
