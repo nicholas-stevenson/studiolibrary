@@ -442,7 +442,8 @@ class Pose(mutils.TransferObject):
             return
 
         gimbal_nodes = ["{}:{}".format(rig.namespace, b) for b in
-                        [rig.bone_map.clavicle_left, rig.bone_map.clavicle_right, rig.bone_map.hip_left, rig.bone_map.hip_right]]
+                        [rig.bone_map.cog,
+                         rig.bone_map.clavicle_left, rig.bone_map.clavicle_right, rig.bone_map.hip_left, rig.bone_map.hip_right]]
 
         posing_nodes = []
 
