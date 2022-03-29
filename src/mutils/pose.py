@@ -55,6 +55,7 @@ pose.load(objects=["Character1:Hand_L", "Character1:Finger_L"])
 
 """
 import logging
+import traceback
 
 import msn.maya.rig.query
 import msn.maya.rig.types.character
@@ -76,8 +77,6 @@ try:
     import maya.cmds
     import maya.api.OpenMaya as om2
 except ImportError:
-    import traceback
-
     traceback.print_exc()
 
 __all__ = ["Pose", "savePose", "loadPose"]
@@ -428,8 +427,6 @@ class Pose(mutils.TransferObject):
                             if keyframe:
                                 maya.cmds.setKeyframe(ik_system.control, attribute=attribute, value=value)
 
-
-
     def keyCommonGimbalNodes(self, rig):
         """
         The switch from DG to Parallel evaluation mode and while keying nodes on an animation layer,
@@ -460,7 +457,18 @@ class Pose(mutils.TransferObject):
         return isinstance(rig, msn.maya.rig.types.character.Rig)
 
     def isPosingRig(self):
-        return bool(self._rig_list)
+        return any([self.isCharacterRig(rig) for rig in self._rig_list])
+
+    def replaceNamespace(self, node, rig):
+        if node:
+            namespace = shared.maya.namespace.get_namespace(node)
+            node_name = shared.maya.namespace.strip_namespace(node)
+            namespace_split = namespace.split(":")
+
+            new_namespace = ":".join([rig.namespace] + namespace_split[1:])
+            return "{}:{}".format(new_namespace, node_name)
+        else:
+            return None
 
     def isIkSystemPosing(self, ik_system):
         """
@@ -499,72 +507,77 @@ class Pose(mutils.TransferObject):
 
         return False
 
-    def applyRelativeTo(self,  relativeTo, gunRelativeTo):
-        cog, cog_data = self.getDataNodeByName('cog')
-        root, root_data = self.getDataNodeByName('root')
-        gun, gun_data = self.getDataNodeByName('gun_ctrl')
+    def applyRelativeTo(self, relativeTo, gunRelativeTo):
+        pose_cog, cog_data = self.getDataNodeByName('cog')
+        pose_root, root_data = self.getDataNodeByName('root')
+        pose_gun, gun_data = self.getDataNodeByName('gun_ctrl')
         objects = self.objects()
 
+        rig = [rig for rig in self._rig_list if self.isCharacterRig(rig)][0]
+        scene_cog = self.replaceNamespace(pose_cog, rig)
+        scene_root = self.replaceNamespace(pose_root, rig)
+        scene_gun = self.replaceNamespace(pose_gun, rig)
+
         if relativeTo:
-            if not cog or not root:
+            if not pose_cog or not pose_root:
                 logger.warning("Pose is missing data for bones needed to apply relatively to the Root, falling back to non-relative behavior.")
-                print("Bones missing from pose: {}".format(",".join([i.split(':')[-1] for i in [cog, root] if i])))
+                print("Bones missing from pose: {}".format(",".join([i.split(':')[-1] for i in [pose_cog, pose_root] if i])))
                 return
 
-            self._relative_to_snapshot[cog] = copy.deepcopy(cog_data)
-            self._relative_to_snapshot[root] = copy.deepcopy(root_data)
+            self._relative_to_snapshot[pose_cog] = copy.deepcopy(cog_data)
+            self._relative_to_snapshot[pose_root] = copy.deepcopy(root_data)
 
             cog_pose_world_matrix = om2.MMatrix(cog_data["attrs"]["worldMatrix"]["value"])
             root_pose_world_matrix = om2.MMatrix(root_data["attrs"]["worldMatrix"]["value"])
 
-            root_current_local_matrix = shared.maya.api.matrix.get_matrix(root, "matrix")
-            root_current_world_matrix = shared.maya.api.matrix.get_matrix(root, "matrix")
-            root_current_parent_matrix = shared.maya.api.matrix.get_matrix(root, "parentMatrix")
+            root_current_local_matrix = shared.maya.api.matrix.get_matrix(scene_root, "matrix")
+            root_current_world_matrix = shared.maya.api.matrix.get_matrix(scene_root, "matrix")
+            root_current_parent_matrix = shared.maya.api.matrix.get_matrix(scene_root, "parentMatrix")
 
-            cog_current_local_matrix = shared.maya.api.matrix.get_matrix(cog, "matrix")
-            cog_current_world_matrix = shared.maya.api.matrix.get_matrix(cog, "worldMatrix")
-            cog_current_parent_matrix = shared.maya.api.matrix.get_matrix(cog, "parentMatrix")
+            cog_current_local_matrix = shared.maya.api.matrix.get_matrix(scene_cog, "matrix")
+            cog_current_world_matrix = shared.maya.api.matrix.get_matrix(scene_cog, "worldMatrix")
+            cog_current_parent_matrix = shared.maya.api.matrix.get_matrix(scene_cog, "parentMatrix")
 
             if relativeTo.lower() == 'root':
                 world_matrix = (cog_pose_world_matrix * root_pose_world_matrix.inverse()) * root_current_local_matrix
                 local_matrix = world_matrix * cog_current_parent_matrix.inverse()
 
-                objects[cog]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
-                objects[cog]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
+                objects[pose_cog]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
+                objects[pose_cog]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
 
-                objects[root]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_current_local_matrix)
-                objects[root]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_current_world_matrix)
+                objects[pose_root]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_current_local_matrix)
+                objects[pose_root]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_current_world_matrix)
 
             elif relativeTo.lower() == 'cog':
                 world_matrix = (root_pose_world_matrix * cog_pose_world_matrix.inverse()) * cog_current_world_matrix
                 local_matrix = world_matrix * root_current_parent_matrix.inverse()
 
-                objects[root]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
-                objects[root]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
+                objects[pose_root]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
+                objects[pose_root]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
 
-                objects[cog]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_world_matrix)
-                objects[cog]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_local_matrix)
+                objects[pose_cog]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_world_matrix)
+                objects[pose_cog]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_local_matrix)
 
         if gunRelativeTo and "gun_ctrl" in [shared.maya.namespace.strip_namespace(i).lower() for i in self.objects()]:
-            if not cog or not gun:
+            if not pose_cog or not pose_gun:
                 logger.warning("Pose is missing data for bones needed to apply relatively to the Character, falling back to non-relative behavior.")
-                print("Bones missing from pose: {}".format(",".join([i.split(':')[-1] for i in [cog, gun] if i])))
+                print("Bones missing from pose: {}".format(",".join([i.split(':')[-1] for i in [pose_cog, pose_gun] if i])))
                 return
 
-            self._relative_to_snapshot[gun] = copy.deepcopy(gun_data)
+            self._relative_to_snapshot[pose_gun] = copy.deepcopy(gun_data)
 
             gun_pose_world_matrix = om2.MMatrix(gun_data["attrs"]["worldMatrix"]["value"])
             cog_pose_world_matrix = om2.MMatrix(cog_data["attrs"]["worldMatrix"]["value"])
 
-            gun_current_parent_matrix = shared.maya.api.matrix.get_matrix(gun, "parentMatrix")
-            cog_current_world_matrix = shared.maya.api.matrix.get_matrix(cog, "worldMatrix")
+            gun_current_parent_matrix = shared.maya.api.matrix.get_matrix(scene_gun, "parentMatrix")
+            cog_current_world_matrix = shared.maya.api.matrix.get_matrix(scene_cog, "worldMatrix")
 
             if gunRelativeTo.lower() == 'character':
                 world_matrix = (gun_pose_world_matrix * cog_pose_world_matrix.inverse()) * cog_current_world_matrix
                 local_matrix = world_matrix * gun_current_parent_matrix.inverse()
 
-                objects[gun]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
-                objects[gun]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
+                objects[pose_gun]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
+                objects[pose_gun]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
 
     def getDataNodeByName(self, name, as_pointer=False):
         """
@@ -632,7 +645,7 @@ class Pose(mutils.TransferObject):
               so we might have to live with a glitchy cache unless this action
               is more stable in newer versions of Maya.
         '''
-        #shared.maya.animation.cache.invalidate_playback_range()
+        # shared.maya.animation.cache.invalidate_playback_range()
 
     def hasTransforms(self, attrs_list):
         for attr in attrs_list:
@@ -720,24 +733,24 @@ class Pose(mutils.TransferObject):
     @shared.maya.decorators.as_dg
     def load(
             self,
-            objects=None,
-            namespaces=None,
-            attrs=None,
-            blend=100,
-            key=False,
-            mirror=False,
-            additive=False,
-            refresh=False,
-            batchMode=False,
-            clearCache=False,
-            mirrorTable=None,
-            onlyConnected=False,
-            clearSelection=False,
-            ignoreConnected=False,
-            searchAndReplace=None,
-            applyRelativeTo=None,
-            gunRelativeTo=None
-    ):
+             objects=None,
+             namespaces=None,
+             attrs=None,
+             blend=100,
+             key=False,
+             mirror=False,
+             additive=False,
+             refresh=False,
+             batchMode=False,
+             clearCache=False,
+             mirrorTable=None,
+             onlyConnected=False,
+             clearSelection=False,
+             ignoreConnected=False,
+             searchAndReplace=None,
+             applyRelativeTo=None,
+             gunRelativeTo=None
+             ):
         """
         Load the pose to the given objects or namespaces.
         
@@ -860,6 +873,8 @@ class Pose(mutils.TransferObject):
                 else:
                     logging.warning("This pose must be re-saved to allow for relative posing, falling back to non-relative behavior.")
 
+            # Remove all ik and pole vector controllers from the pose data
+            # We set the rig to FK and any controllers that were in IK are match and switched post posing.
             ik_controllers = []
             pole_vector_controllers = []
 
@@ -868,7 +883,7 @@ class Pose(mutils.TransferObject):
                     ik_controllers.append(shared.maya.namespace.strip_namespace(ik_system.control))
                     pole_vector_controllers.append(shared.maya.namespace.strip_namespace(ik_system.pole_vector_control))
 
-            for node in self._data.get("objects").keys():
+            for node in list(self._data.get("objects").keys()):
                 node_no_ns = shared.maya.namespace.strip_namespace(node)
 
                 if node_no_ns in ik_controllers + pole_vector_controllers:
