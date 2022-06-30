@@ -730,7 +730,7 @@ class Pose(mutils.TransferObject):
     @shared.maya.decorators.undo
     @shared.maya.decorators.disable_auto_keyframe
     @shared.maya.decorators.restore_selection
-    @shared.maya.decorators.as_dg
+    # @shared.maya.decorators.as_dg
     def load(
             self,
              objects=None,

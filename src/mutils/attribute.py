@@ -304,7 +304,10 @@ class Attribute(object):
             elif self.type() in ["list", "matrix"]:
                 maya.cmds.setAttr(self.fullname(), *value, type=self.type())
             else:
-                maya.cmds.setAttr(self.fullname(), value, clamp=clamp)
+                if self.attr() == "rotateOrder":
+                    maya.cmds.xform(self.name(), rotateOrder=self.rotateOrderIndexToStr(value), preserve=True)
+                else:
+                    maya.cmds.setAttr(self.fullname(), value, clamp=clamp)
         except (ValueError, RuntimeError) as error:
             msg = "Cannot SET attribute {0}: Error: {1}"
             msg = msg.format(self.fullname(), error)
@@ -341,6 +344,13 @@ class Attribute(object):
         kwargs.setdefault("respectKeyable", respectKeyable)
 
         maya.cmds.setKeyframe(self.name(), **kwargs)
+
+        # Animation layers liek to stick if you
+        # don't hammer them with extra setKeyframe calls.
+        if "translate" in self.attr():
+            maya.cmds.setKeyframe(f"{self.name()}.translate")
+        elif "rotate" in self.attr():
+            maya.cmds.setKeyframe(f"{self.name()}.rotate")
 
     def setStaticKeyframe(self, value, time, option):
         """
@@ -550,3 +560,12 @@ class Attribute(object):
 
     def isTransform(self, attr):
         return any([attr.startswith("translate") or attr.startswith("rotate") or attr.startswith("scale")])
+
+    def rotateOrderIndexToStr(self, idx):
+        rotate_order = {0: "xyz",
+                        1: "yzx",
+                        2: "zxy",
+                        3: "xzy",
+                        4: "yxz",
+                        5: "zyx"}
+        return rotate_order.get(idx)
