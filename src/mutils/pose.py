@@ -63,14 +63,14 @@ import msn.maya.rig.types.weapon
 import msn.maya.rig.components.ik
 import msn.maya.rig.components.space_switch
 import mutils
-import shared.maya.api.matrix
-import shared.maya.api.object
-import shared.maya.decorators
-import shared.maya.namespace
-import shared.python.math
-import shared.maya.hierarchy
-import shared.maya.animation.cache
-import shared.maya.attribute
+import msn.maya.api.matrix
+import msn.maya.api.object
+import msn.maya.decorators
+import msn.maya.namespace
+import msn.python.math
+import msn.maya.hierarchy
+import msn.maya.animation.cache
+import msn.maya.attribute
 import copy
 
 try:
@@ -422,7 +422,7 @@ class Pose(mutils.TransferObject):
                         pose_attributes = self._ik_controllers.get(ik_system.control).get("attrs")
                         if attribute in pose_attributes:
                             value = pose_attributes.get(attribute).get("value")
-                            shared.maya.attribute.set_attribute(ik_system.control, attribute, value)
+                            msn.maya.attribute.set_attribute(ik_system.control, attribute, value)
 
                             if keyframe:
                                 maya.cmds.setKeyframe(ik_system.control, attribute=attribute, value=value)
@@ -450,7 +450,7 @@ class Pose(mutils.TransferObject):
 
         for node in gimbal_nodes:
             if node in posing_nodes:
-                for attribute in shared.maya.attribute.list_keyable_transforms(node):
+                for attribute in msn.maya.attribute.list_keyable_transforms(node):
                     maya.cmds.setKeyframe(node, attribute=attribute)
 
     def isCharacterRig(self, rig):
@@ -461,8 +461,8 @@ class Pose(mutils.TransferObject):
 
     def replaceNamespace(self, node, rig):
         if node:
-            namespace = shared.maya.namespace.get_namespace(node)
-            node_name = shared.maya.namespace.strip_namespace(node)
+            namespace = msn.maya.namespace.get_namespace(node)
+            node_name = msn.maya.namespace.strip_namespace(node)
             namespace_split = namespace.split(":")
 
             new_namespace = ":".join([rig.namespace] + namespace_split[1:])
@@ -491,15 +491,15 @@ class Pose(mutils.TransferObject):
         posing_nodes = set([i[1].name() for i in self._cache])
 
         for bone in ik_system.bone_list:
-            bone_parents = shared.maya.hierarchy.list_hierarchy(bone)
+            bone_parents = msn.maya.hierarchy.list_hierarchy(bone)
             if any([b in posing_nodes for b in bone_parents + [bone]]):
                 return True
 
-        if "gun_ctrl" in [shared.maya.namespace.strip_namespace(i).lower() for i in posing_nodes]:
+        if "gun_ctrl" in [msn.maya.namespace.strip_namespace(i).lower() for i in posing_nodes]:
             if not ik_system.rig.weapons:
                 return False
             else:
-                posing_namespaces = list(set([shared.maya.namespace.get_namespace(i) for i in posing_nodes]))
+                posing_namespaces = list(set([msn.maya.namespace.get_namespace(i) for i in posing_nodes]))
                 if any([weapon.namespace in posing_namespaces for weapon in ik_system.rig.weapons]):
                     space_switch = msn.maya.rig.components.space_switch.to_space_switch_object_from_scene_object(ik_system.control)
                     if space_switch.state == "Gun":
@@ -530,35 +530,35 @@ class Pose(mutils.TransferObject):
             cog_pose_world_matrix = om2.MMatrix(cog_data["attrs"]["worldMatrix"]["value"])
             root_pose_world_matrix = om2.MMatrix(root_data["attrs"]["worldMatrix"]["value"])
 
-            root_current_local_matrix = shared.maya.api.matrix.get_matrix(scene_root, "matrix")
-            root_current_world_matrix = shared.maya.api.matrix.get_matrix(scene_root, "matrix")
-            root_current_parent_matrix = shared.maya.api.matrix.get_matrix(scene_root, "parentMatrix")
+            root_current_local_matrix = msn.maya.api.matrix.get_matrix(scene_root, "matrix")
+            root_current_world_matrix = msn.maya.api.matrix.get_matrix(scene_root, "matrix")
+            root_current_parent_matrix = msn.maya.api.matrix.get_matrix(scene_root, "parentMatrix")
 
-            cog_current_local_matrix = shared.maya.api.matrix.get_matrix(scene_cog, "matrix")
-            cog_current_world_matrix = shared.maya.api.matrix.get_matrix(scene_cog, "worldMatrix")
-            cog_current_parent_matrix = shared.maya.api.matrix.get_matrix(scene_cog, "parentMatrix")
+            cog_current_local_matrix = msn.maya.api.matrix.get_matrix(scene_cog, "matrix")
+            cog_current_world_matrix = msn.maya.api.matrix.get_matrix(scene_cog, "worldMatrix")
+            cog_current_parent_matrix = msn.maya.api.matrix.get_matrix(scene_cog, "parentMatrix")
 
             if relativeTo.lower() == 'root':
                 world_matrix = (cog_pose_world_matrix * root_pose_world_matrix.inverse()) * root_current_local_matrix
                 local_matrix = world_matrix * cog_current_parent_matrix.inverse()
 
-                objects[pose_cog]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
-                objects[pose_cog]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
+                objects[pose_cog]["attrs"]["matrix"]["value"] = msn.maya.api.matrix.matrix_as_list(local_matrix)
+                objects[pose_cog]["attrs"]["worldMatrix"]["value"] = msn.maya.api.matrix.matrix_as_list(world_matrix)
 
-                objects[pose_root]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_current_local_matrix)
-                objects[pose_root]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(root_current_world_matrix)
+                objects[pose_root]["attrs"]["matrix"]["value"] = msn.maya.api.matrix.matrix_as_list(root_current_local_matrix)
+                objects[pose_root]["attrs"]["worldMatrix"]["value"] = msn.maya.api.matrix.matrix_as_list(root_current_world_matrix)
 
             elif relativeTo.lower() == 'cog':
                 world_matrix = (root_pose_world_matrix * cog_pose_world_matrix.inverse()) * cog_current_world_matrix
                 local_matrix = world_matrix * root_current_parent_matrix.inverse()
 
-                objects[pose_root]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
-                objects[pose_root]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
+                objects[pose_root]["attrs"]["worldMatrix"]["value"] = msn.maya.api.matrix.matrix_as_list(world_matrix)
+                objects[pose_root]["attrs"]["matrix"]["value"] = msn.maya.api.matrix.matrix_as_list(local_matrix)
 
-                objects[pose_cog]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_world_matrix)
-                objects[pose_cog]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(cog_current_local_matrix)
+                objects[pose_cog]["attrs"]["worldMatrix"]["value"] = msn.maya.api.matrix.matrix_as_list(cog_current_world_matrix)
+                objects[pose_cog]["attrs"]["matrix"]["value"] = msn.maya.api.matrix.matrix_as_list(cog_current_local_matrix)
 
-        if gunRelativeTo and "gun_ctrl" in [shared.maya.namespace.strip_namespace(i).lower() for i in self.objects()]:
+        if gunRelativeTo and "gun_ctrl" in [msn.maya.namespace.strip_namespace(i).lower() for i in self.objects()]:
             if not pose_cog or not pose_gun:
                 logger.warning("Pose is missing data for bones needed to apply relatively to the Character, falling back to non-relative behavior.")
                 print("Bones missing from pose: {}".format(",".join([i.split(':')[-1] for i in [pose_cog, pose_gun] if i])))
@@ -569,15 +569,15 @@ class Pose(mutils.TransferObject):
             gun_pose_world_matrix = om2.MMatrix(gun_data["attrs"]["worldMatrix"]["value"])
             cog_pose_world_matrix = om2.MMatrix(cog_data["attrs"]["worldMatrix"]["value"])
 
-            gun_current_parent_matrix = shared.maya.api.matrix.get_matrix(scene_gun, "parentMatrix")
-            cog_current_world_matrix = shared.maya.api.matrix.get_matrix(scene_cog, "worldMatrix")
+            gun_current_parent_matrix = msn.maya.api.matrix.get_matrix(scene_gun, "parentMatrix")
+            cog_current_world_matrix = msn.maya.api.matrix.get_matrix(scene_cog, "worldMatrix")
 
             if gunRelativeTo.lower() == 'character':
                 world_matrix = (gun_pose_world_matrix * cog_pose_world_matrix.inverse()) * cog_current_world_matrix
                 local_matrix = world_matrix * gun_current_parent_matrix.inverse()
 
-                objects[pose_gun]["attrs"]["worldMatrix"]["value"] = shared.maya.api.matrix.matrix_as_list(world_matrix)
-                objects[pose_gun]["attrs"]["matrix"]["value"] = shared.maya.api.matrix.matrix_as_list(local_matrix)
+                objects[pose_gun]["attrs"]["worldMatrix"]["value"] = msn.maya.api.matrix.matrix_as_list(world_matrix)
+                objects[pose_gun]["attrs"]["matrix"]["value"] = msn.maya.api.matrix.matrix_as_list(local_matrix)
 
     def getDataNodeByName(self, name, as_pointer=False):
         """
@@ -645,7 +645,7 @@ class Pose(mutils.TransferObject):
               so we might have to live with a glitchy cache unless this action
               is more stable in newer versions of Maya.
         '''
-        # shared.maya.animation.cache.invalidate_playback_range()
+        # msn.maya.animation.cache.invalidate_playback_range()
 
     def hasTransforms(self, attrs_list):
         for attr in attrs_list:
@@ -709,7 +709,7 @@ class Pose(mutils.TransferObject):
             if self.isTransform(srcAttribute.attr()):
                 value = maya.cmds.getAttr(srcAttribute.fullname())
                 # if self.isRotationTransform(srcAttribute.attr()):
-                #      value = shared.python.math.unwind_360(value)
+                #      value = msn.python.math.unwind_360(value)
                 srcAttribute.setValue(value)
 
         for node, matrix in matrix_update.items():
@@ -727,10 +727,10 @@ class Pose(mutils.TransferObject):
         return matrix, worldMatrix
 
     @mutils.timing
-    @shared.maya.decorators.undo
-    @shared.maya.decorators.disable_auto_keyframe
-    @shared.maya.decorators.restore_selection
-    # @shared.maya.decorators.as_dg
+    @msn.maya.decorators.undo
+    @msn.maya.decorators.disable_auto_keyframe
+    @msn.maya.decorators.restore_selection
+    # @msn.maya.decorators.as_dg
     def load(
             self,
              objects=None,
@@ -880,11 +880,11 @@ class Pose(mutils.TransferObject):
 
             for rig in self._rig_list:
                 for ik_system in rig.ik_systems:
-                    ik_controllers.append(shared.maya.namespace.strip_namespace(ik_system.control))
-                    pole_vector_controllers.append(shared.maya.namespace.strip_namespace(ik_system.pole_vector_control))
+                    ik_controllers.append(msn.maya.namespace.strip_namespace(ik_system.control))
+                    pole_vector_controllers.append(msn.maya.namespace.strip_namespace(ik_system.pole_vector_control))
 
             for node in list(self._data.get("objects").keys()):
-                node_no_ns = shared.maya.namespace.strip_namespace(node)
+                node_no_ns = msn.maya.namespace.strip_namespace(node)
 
                 if node_no_ns in ik_controllers + pole_vector_controllers:
                     if node_no_ns in ik_controllers:
